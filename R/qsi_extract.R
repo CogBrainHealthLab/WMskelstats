@@ -57,7 +57,7 @@ qsi_extract=function(inputdir,
   
   #Preload skeleton template
   template='FMRIB58_FA-skeleton_2mm'
-  skeleton_template=RNifti::readNifti(paste0(system.file('extdata',package='TBSSr'),'/templates/', template))
+  skeleton_template=RNifti::readNifti(paste0(system.file('extdata',package='WMskelstats'),'/templates/', template))
   #Premake thresholded skeleton mask 
   skeleton_mask = skeleton_masker(skeleton_template=skeleton_template, 
                                   skeleton_fathreshold=skeleton_fathreshold)
@@ -182,10 +182,10 @@ qsi_extract=function(inputdir,
           if(!silent){message("  => Coregistering metrics map to MNI152NLin2009cAsym...")}
           #Check if MNI152 is available
           #$FSLDIR/data/standard/MNI152_T1_2mm.nii.gz but downloadable from git
-          mni152_2mmvol= paste0(system.file('extdata',package='TBSSr'),'/templates/MNI152_T1_2mm.nii.gz')
+          mni152_2mmvol= paste0(system.file('extdata',package='WMskelstats'),'/templates/MNI152_T1_2mm.nii.gz')
           if (!file.exists(mni152_2mmvol)){
             prompt = utils::menu(c("Yes", "No"), title=paste0(
-              "\nThe MNI 152 template (2mm) was not detected inside the package directory (", paste0(system.file('extdata',package='TBSSr'),'/MNI152_T1_2mm.nii.gz'), "). It is needed for coregistration. It can be downloaded from github.\n\nDo you want the template (~1.34 MB) to be downloaded now?"))
+              "\nThe MNI 152 template (2mm) was not detected inside the package directory (", paste0(system.file('extdata',package='WMskelstats'),'/MNI152_T1_2mm.nii.gz'), "). It is needed for coregistration. It can be downloaded from github.\n\nDo you want the template (~1.34 MB) to be downloaded now?"))
             if (prompt==1) {
               #function to check if url exists
               #courtesy of Schwarz, March 11, 2020, CC BY-SA 4.0:
@@ -197,11 +197,11 @@ qsi_extract=function(inputdir,
                 ifelse(is.null(check),TRUE,FALSE)}
               
               #Check if URL works and avoid returning error but only print message as requested by CRAN:
-              url="https://raw.githubusercontent.com/chabld/TBSSr/main/inst/extdata/templates/MNI152_T1_2mm.nii.gz"
+              url="https://raw.githubusercontent.com/CogBrainHealthLab/WMskelstats/main/inst/extdata/templates/MNI152_T1_2mm.nii.gz"
               if(valid_url(url)) {
                 download.file(url=url,destfile = paste0(system.file(package='VertexWiseR'),'/extdata/templates/MNI152_T1_2mm.nii.gz'))
               }  else { 
-                stop("The template failed to be downloaded from the github repository. Please check your internet connection. Alternatively, you may visit https://github.com/chabld/TBSSr/tree/main/inst/extdata/templates and download the file manually.") #ends function
+                stop("The template failed to be downloaded from the github repository. Please check your internet connection. Alternatively, you may visit https://github.com/CogBrainHealthLab/WMskelstats/tree/main/inst/extdata/templates and download the file manually.") #ends function
               }
             } else {
             stop("Coregistration cannot be done without the MNI 152 template.\n")}
@@ -387,7 +387,7 @@ skeleton_masker=function(skeleton_template, skeleton_fathreshold=0.2){
   
   #load template skeleton if not provided
   if(missing(skeleton_template)){
-    skeleton_template=RNifti::readNifti(paste0(system.file('extdata',package='TBSSr'),'/templates/FMRIB58_FA-skeleton_2mm.nii'))
+    skeleton_template=RNifti::readNifti(paste0(system.file('extdata',package='WMskelstats'),'/templates/FMRIB58_FA-skeleton_2mm.nii'))
   }
   
   #make binary mask out of skeleton and threshold based on FA values: 
