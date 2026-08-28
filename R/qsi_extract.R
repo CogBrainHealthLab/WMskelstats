@@ -122,18 +122,23 @@ qsi_extract=function(inputdir,
           #if dtiDataobj has been created already, skip: will be reused across metrics
           #and cleared before next subject
           if(!exists('dtioutput')){
+            if(!silent){message("  => Fetching individual DWI data ...")}
             dtioutput=dtiData_make(sub_s, subfiles, silent)
             dtiDataobj=dtioutput[[1]]
             dwivol=dtioutput[[2]] #will be reused later for coreg
           }
           #if dtiDataobj has been attempted to be created, but failed, skip
-          if (!inherits(dtiDataobj, "dtiData")) {next} 
+          if (!inherits(dtiDataobj, "dtiData")) {
+            if(!silent){warning(paste0('No DTI/DKI map could be computed for',sub_s,', as either bval, bvec or brain_mask files are missing'))}
+            next
+          } 
           
           #############################
           #computing metrics
           #dti has two algorithm for metrics computation
+          #if already computed, reuse the tensor (all relevant metrics are available)
           
-          if (dti_tensor=='dtiTensor') {
+          if (dti_tensor=='dtiTensor' & !exists('dtiTensorobj')) {
             #DTI
             if(!silent){message(paste0("  => Computing diffusion tensor using ", 
                                        dti_tensor, "..."))}
@@ -144,7 +149,7 @@ qsi_extract=function(inputdir,
                                             mc.cores = setCores(nthread,reprt = FALSE))
             Indicesobj <- dti::dtiIndices(dtiTensorobj, 
                                           mc.cores = setCores(nthread,reprt = FALSE)) 
-          } else if (dti_tensor=='dkiTensor') {
+          } else if (dti_tensor=='dkiTensor' & !exists('dkiTensorobj')) {
             #DKI
             if(!silent){message(paste0("  => Computing diffusion kurtosis tensor (and diffusion tensor)  using ", dti_tensor, "..."))}
             
@@ -155,8 +160,11 @@ qsi_extract=function(inputdir,
             Indicesobj <- dti::dkiIndices(dkiTensorobj, 
                                           mc.cores = setCores(nthread,reprt = FALSE))
             
-          } else {stop('The dti_tensor argument must either be dtiTensor or 
-                       dkiTensor')}
+          } else if (dti_tensor!='dtiTensor' & dti_tensor!='dkiTensor') 
+          {stop('The dti_tensor argument must either be dtiTensor or dkiTensor')
+          } else if (exists('dtiTensorobj') | exists('dkiTensorobj')){
+            if(!silent){message(paste0("  => Reusing previously computed tensor..."))}
+          }
           
           if ((! m %in% slotNames(Indicesobj)) & silent==FALSE)
           {warning(paste0('  => ', m,' did not get outputted in the Indices. It may be an issue with the dti package.
@@ -286,6 +294,9 @@ qsi_extract=function(inputdir,
       
       #clear dtiDataobj of that subject if created
       if (exists('dtioutput', inherits = FALSE)) { remove(dtioutput, dtiDataobj) }
+      if (exists('dtiTensorobj', inherits = FALSE)) { remove(dtiTensorobj) }
+      if (exists('dkiTensorobj', inherits = FALSE)) { remove(dkiTensorobj) }
+      
     }
   }
   ####################################
@@ -337,8 +348,11 @@ dtiData_make=function(sub_s,
   #If enough data to compute DTI/DKI map, do it
   if (length(grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.nii*"),
                   subfiles, value=TRUE))>0 & 
-      length(grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.bval"),
-                  subfiles, value=TRUE))>0 & 
+      #fall back if .bval missing
+      (length(grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.bval"),
+                  subfiles, value=TRUE))>0 | 
+       length(grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.b_table"),
+                   subfiles, value=TRUE))>0) & 
       length(grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.bvec"),
                   subfiles, value=TRUE))>0 &
       length(grep(paste0("(?=.*/dwi/)(?=.*",sub_s,"_space-ACPC_desc-brain_mask\\.nii(\\.gz)?)"), subfiles, perl = TRUE,value = TRUE))>0
@@ -346,7 +360,15 @@ dtiData_make=function(sub_s,
   {
     #define DWI volume and associated bvals and bvec
     bvec <- as.matrix(read.table(grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.bvec"), subfiles, value = TRUE)))
-    bval <- scan(grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.bval"), subfiles,value = TRUE), quiet=TRUE)
+    #fall back if .bval missing
+    if (length(grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.bval"),
+                    subfiles, value=TRUE))>0) {
+      bval <- scan(grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.bval"), subfiles,value = TRUE), quiet=TRUE)}
+    else if (length(grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.b_table"),
+                         subfiles, value=TRUE))>0) {
+      bval <- as.numeric(unlist(read.table(grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.b_table"), subfiles,value = TRUE))[1]))
+    }
+    
     dwivol <- grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.nii*"), subfiles, value = TRUE)
     #create dti package base object
     dtiDataobj <- dti::readDWIdata(
@@ -359,10 +381,7 @@ dtiData_make=function(sub_s,
     return(list(dtiDataobj, RNifti::readNifti(dwivol)))
   } else {
     dtiDataobj=NA
-    if (!silent){
-      warning(paste0('No DTI/DKI map could be computed for',sub_s,', as either bval, bvec or brain_mask files are missing'))
       return(list(NA,NA))
-    }
   }
 }
 
