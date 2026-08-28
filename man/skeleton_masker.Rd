@@ -4,12 +4,12 @@
 \alias{skeleton_masker}
 \title{Fractional anisotropy skeleton masker}
 \usage{
-skeleton_masker(skeleton_template, skeleton_threshold = 0.2)
+skeleton_masker(skeleton_template, skeleton_fathreshold = 0.2)
 }
 \arguments{
 \item{skeleton_template}{The template FA skeleton (currently, only FMRIB58 2mm). It is optional as qsi_extract already preloads it when running skeleton_masker, but the latter function can load it by on its own if needed.}
 
-\item{skeleton_threshold}{A numerical object with the (Fractional Anisotropy) threshold value with which to apply the template skeleton. Default is 0.2.}
+\item{skeleton_fathreshold}{A numerical object with the (Fractional Anisotropy) threshold value with which to apply the template skeleton. Default is 0.2.}
 
 \item{sub_s}{A string indicating the subject ID and their session if applicable (e.g. "sub-0001_ses-1"). Will be used to read inside BIDS-formatted file names.}
 
@@ -21,5 +21,5 @@ skeleton_masker(skeleton_template, skeleton_threshold = 0.2)
 Function to get mask of a template fractional anisotropy (FA) skeleton at a desired threshold. The skeleton is based on FSL's FMRIB58_FA-skeleton_1mm and downsampled to 2mm.
 }
 \examples{
-skeleton_mask=skeleton_masker(skeleton_threshold=0.2) 
+skeleton_mask=skeleton_masker(skeleton_fathreshold=0.2) 
 }

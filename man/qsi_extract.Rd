@@ -7,8 +7,8 @@
 qsi_extract(
   inputdir,
   outputdir,
-  metrics = c("fa", "md", "ga"),
-  skeleton_threshold = 0.2,
+  metrics = c("fa", "md"),
+  skeleton_fathreshold = 0.2,
   dti_tensor = "dtiTensor",
   dti_method,
   dti_sigma = NULL,
@@ -23,17 +23,17 @@ qsi_extract(
 
 \item{outputdir}{A string object containing the path of the directory where the final cohort-wise RDS will be stored for each metric (as well as metrics maps if \code{keep_maps} is set as TRUE). Default is 'cohort_skeletons' in the R temporary directory (tempdir()).}
 
-\item{metrics}{A string object or vector of string objects containing the name (s) of the metrics to be estimated. For QSIprep outputs, only the dti package's "dtiIndices/dkiIndices" metrics apply ("fa","ga","md","k1","k2","k3","mk","mk2","kaxial","kradial","fak"); for QSIrecon outputs, it can be any reconstruction output that has a "\emph{param-\}_dwimap.nii.gz" output in MNI152 space. Default is 0.2.}
+\item{metrics}{A string object or vector of string objects containing the name (s) of the metric(s) to be estimated, in lower case. For QSIprep outputs, only the dti package's "dtiIndices/dkiIndices" metrics apply ("fa","ga","md","k1","k2","k3","mk","mk2","kaxial","kradial","fak"); for QSIrecon outputs, it can be any reconstruction output that has a "\emph{param-\}_dwimap.nii.gz" suffix in MNI152 space (e.g., 'icvf', 'od' etc.). Default is c('fa', 'md').}
 
-\item{skeleton_threshold}{A numerical object with the (Fractional Anisotropy) threshold value with which to apply the template skeleton.}
+\item{skeleton_fathreshold}{A numerical object with the Fractional Anisotropy (FA) threshold value to apply on the template FA skeleton (FMRIB58 2mm). Default is 0.2.}
 
 \item{dti_tensor}{A string object stating the tensor to be used for applicable metrics estimation ('dtiTensor' or 'dkiTensor'). Default is dtiTensor. Argument ignored for QSIrecon output.}
 
-\item{dti_method}{A string object containing the method to be used for tensor-based estimations. If \code{dti_tensor} is dtiTensor, it includes "nonlinear" (default), "linear", "quasi-likelihood"; if \code{dti_tensor} is dkiTensor, it includes "CLLS-QP" (default), "CLLS-H", "ULLS", "QL", "NLR". Argument ignored for QSIrecon output.}
+\item{dti_method}{A string object containing the method to be used for tensor-based estimations. If \code{dti_tensor} is 'dtiTensor', pptions include "nonlinear" (default), "linear", "quasi-likelihood"; if \code{dti_tensor} is 'dkiTensor', options include "CLLS-QP" (default), "CLLS-H", "ULLS", "QL", "NLR". Argument ignored for QSIrecon output.}
 
 \item{dti_sigma}{An integer specifying the sigma value (scale parameter of the signal's distribution) to be used as part of the tensor estimation. Default is NULL. Argument ignored for QSIrecon output.}
 
-\item{dti_L}{An integer specifying the effective degrees of freedom. Default is 1.  Argument ignored for QSIrecon output.}
+\item{dti_L}{An integer specifying the effective degrees of freedom for the tensor estimation. Default is 1.  Argument ignored for QSIrecon output.}
 
 \item{nthread}{Number of CPU threads for the dti package to use when estimating the tensor and metrics from the data. Argument ignored for QSIrecon output.}
 
@@ -43,7 +43,7 @@ qsi_extract(
 }
 \value{
 A list of 2D matrices, each matrix corresponding to one metric from
-\code{metrics}. Each element (skel_matrices$fa, skel_matrices$md, skel_matrices$ga, ...) is its own separate matrix: rows = sub_ses, columns = voxels. Additionally
+\code{metrics}. Each element (skel_matrices$fa, skel_matrices$md, skel_matrices$ga, ...) is its own separate matrix: rows = sub_ses, columns = voxels. Additionally, the list contains the coordinates of the skeleton voxels (skel_coords matrix), the skeleton template they are based on, and the FA threshold selected.
 }
 \description{
 Extracts diffusion weighted imaging based metrics across a whole cohort datasets from QSIprep or QSIrecon pipeline outputs, masked into a common skeleton template, and merging them into single RDS files for each metric of interest.
