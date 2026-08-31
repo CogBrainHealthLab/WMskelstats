@@ -65,6 +65,11 @@ qsi_extract=function(inputdir,
   metadata=list(skeleton_mask[[2]],template, skeleton_fathreshold)
   names(metadata)=c('skel_coords','skel_template','skel_threshold')
   
+  #clear dtiDataobj in case these are also in the environment
+  if (exists('dtioutput', inherits = FALSE)) { remove(dtioutput, dtiDataobj) }
+  if (exists('dtiTensorobj', inherits = FALSE)) { remove(dtiTensorobj) }
+  if (exists('dkiTensorobj', inherits = FALSE)) { remove(dkiTensorobj) }
+  
   #prepare grand skeleton list (will contain cohort matrices for each metrics) 
   skel_list <- setNames(vector("list", length(metrics)),
                           paste0("skel_", metrics))
@@ -94,7 +99,7 @@ qsi_extract=function(inputdir,
     
     for (sub_s in subses)
     {
-      if(!silent){message("Processing ", sub_s,"...")}
+      if(!silent){message("\nProcessing ", sub_s,"...")}
       
       for (m in metrics)
       {
@@ -395,7 +400,7 @@ dtiData_make=function(sub_s,
 #' @param sub_s A string indicating the subject ID and their session if applicable (e.g. "sub-0001_ses-1"). Will be used to read inside BIDS-formatted file names.
 #' @param metrics_map A metrics map in MNI 152 2mm space
 #' @param skeleton_fathreshold A numerical object with the (Fractional Anisotropy) threshold value with which to apply the template skeleton. Default is 0.2.
-#' @param skeleton_template The template FA skeleton (currently, only FMRIB58 2mm). It is optional as qsi_extract already preloads it when running skeleton_masker, but the latter function can load it by on its own if needed.
+#' @param skeleton_template A string object naming the template FA skeleton (currently, only 'FMRIB58_FA-skeleton_2mm') or a niftiImage object of the template loaded with RNifti. It is optional as qsi_extract already preloads it when running skeleton_masker, but the latter function can load it by on its own if needed.
 #' @param silent Whether to print messages and warnings or not. Default is FALSE.
 #' @importFrom RNifti readNifti
 #' @examples
@@ -407,8 +412,12 @@ skeleton_masker=function(skeleton_template, skeleton_fathreshold=0.2){
   #load template skeleton if not provided
   if(missing(skeleton_template)){
     skeleton_template=RNifti::readNifti(paste0(system.file('extdata',package='WMskelstats'),'/templates/FMRIB58_FA-skeleton_2mm.nii'))
-  }
-  
+  } else if (!inherits(skeleton_template,'niftiImage'))
+  {
+    skeleton_template=RNifti::readNifti(paste0(system.file('extdata',package='WMskelstats'),'/templates/',skeleton_template,'.nii'))
+  } else
+  {stop('The skeleton_template must either be the name of the template, or the template itself loaded via RNifti::readNifti.')}
+    
   #make binary mask out of skeleton and threshold based on FA values: 
   skeleton_bin=array(0L, dim=dim(skeleton_template))
   thresh=skeleton_fathreshold*10000
