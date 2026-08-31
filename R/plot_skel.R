@@ -49,7 +49,7 @@
 ##################################################################################################################
 ##################################################################################################################
 
-plot_interactive_skeleton=function(coords, data, template = rep(NA, length(data))) {
+plot_skel=function(coords, data, template = rep(NA, length(data))) {
   stopifnot(is.matrix(coords) || is.data.frame(coords))
   stopifnot(ncol(coords) >= 3)
   stopifnot(length(data) == nrow(coords))
