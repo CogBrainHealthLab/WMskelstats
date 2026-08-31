@@ -80,46 +80,47 @@ plot_skel=function(coords, data, template = rep(NA, length(data))) {
   z_range=range(df$Z, na.rm = TRUE)
   
   ui=fluidPage(
-    titlePanel("Interactive Skeleton Visualizer"),
-    
+   
     sidebarLayout(
-      sidebarPanel(width = 3,h4("Slice Coordinates"),
-        
-        sliderInput("x_slider", "X Coordinate (Sagittal):", min = floor(x_range[1]), max = ceiling(x_range[2]), value = round(median(df$X)), step = 1),
-        plotOutput("x_density", height = "25px"),
-        sliderInput("y_slider", "Y Coordinate (Coronal):", min = floor(y_range[1]), max = ceiling(y_range[2]), value = round(median(df$Y)), step = 1),
-        plotOutput("y_density", height = "25px"),
-        sliderInput("z_slider", "Z Coordinate (Axial):",min = floor(z_range[1]), max = ceiling(z_range[2]), value = round(median(df$Z)), step = 1),
-        plotOutput("z_density", height = "25px"),
-        
-        hr(),
-        h4("Data Controls"),
-        sliderInput("thresh_val", "Value Threshold (Min):",min = round(thresh_min, 2), max = round(thresh_max, 2),value = round(thresh_min, 2), step = round(thresh_step, 2)),
-        
-        hr(),
-        h4("Appearance Controls"),
-        checkboxInput("black_bg", "Black Background", value = FALSE),
-        selectInput("colorscale", "Color Palette:",choices = c("viridis", "plasma", "inferno", "magma", "cividis", "jet", "rainbow", "hot"),selected = "viridis"),
-        sliderInput("pt_size", "Point Size:", min = 1, max = 10, value = 3, step = 0.5),
-        sliderInput("na_opacity", "Template Opacity:", min = 0, max = 1, value = 0.5, step = 0.1),
-        
-        hr(),
-        checkboxInput("show_2d", "Show 2D Slice Views", value = TRUE),
-        conditionalPanel(condition = "input.show_2d == true",
-        downloadButton("download_2d_png", "Save 2D Slices as PNG", class = "btn-primary", style = "width: 100%;")
-        )
+      sidebarPanel(width = 3,
+                   h4("Slice Coordinates"),
+                   
+                   sliderInput("x_slider", "X Coordinate (Sagittal):", min = floor(x_range[1]), max = ceiling(x_range[2]), value = round(median(df$X)), step = 1),
+                   plotOutput("x_density", height = "25px"),
+                   sliderInput("y_slider", "Y Coordinate (Coronal):", min = floor(y_range[1]), max = ceiling(y_range[2]), value = round(median(df$Y)), step = 1),
+                   plotOutput("y_density", height = "25px"),
+                   sliderInput("z_slider", "Z Coordinate (Axial):",min = floor(z_range[1]), max = ceiling(z_range[2]), value = round(median(df$Z)), step = 1),
+                   plotOutput("z_density", height = "25px"),
+                   
+                   h4("Data Controls"),
+                   sliderInput("lower_thresh_val", "Lower threshold: data below this threshold are zeroed out",min = round(thresh_min, 2), max = round(thresh_max, 2),value = round(thresh_min, 2), step = round(thresh_step, 2)),
+                   sliderInput("upper_thresh_val", "Upper threshold: data above this threshold are zeroed out",min = round(thresh_min, 2), max = round(thresh_max, 2),value = round(thresh_max, 2), step = round(thresh_step, 2)),
+                   
+                   h4("Appearance Controls"),
+                   
+                   selectInput("colorscale", "Color Palette:",choices = c("viridis", "plasma", "inferno", "magma", "cividis", "jet", "rainbow", "hot"),selected = "viridis"),
+                   sliderInput("pt_size", "Point Size:", min = 1, max = 10, value = 3, step = 0.5),
+                   sliderInput("na_opacity", "Template Opacity:", min = 0, max = 1, value = 0.5, step = 0.1),
+                   
+                   fluidRow(
+                     column(6, checkboxInput("show_2d", "Show 2D Slice Views", value = TRUE)),
+                     column(6, checkboxInput("black_bg", "Black Background", value = FALSE))
+                   ),
+                   conditionalPanel(condition = "input.show_2d == true",
+                                    downloadButton("download_2d_png", "Save 2D Slices as PNG", class = "btn-primary", style = "width: 100%;")
+                   )
       ),
       
       mainPanel(width = 9,
-        fluidRow(column(12, uiOutput("plot_3d_container"))),
-        conditionalPanel(condition = "input.show_2d == true",
-          br(),
-          fluidRow(
-            column(4, plotOutput("plot_sagittal", height = "450px")),
-            column(4, plotOutput("plot_coronal", height = "450px")),
-            column(4, plotOutput("plot_axial", height = "450px"))
-          )
-        )
+                fluidRow(column(12, uiOutput("plot_3d_container"))),
+                conditionalPanel(condition = "input.show_2d == true",
+                                 br(),
+                                 fluidRow(
+                                   column(4, plotOutput("plot_sagittal", height = "450px")),
+                                   column(4, plotOutput("plot_coronal", height = "450px")),
+                                   column(4, plotOutput("plot_axial", height = "450px"))
+                                 )
+                )
       )
     )
   )
@@ -128,9 +129,15 @@ plot_skel=function(coords, data, template = rep(NA, length(data))) {
     
     # Dynamic subsetting based on value thresholding
     df_filtered=reactive({
-      req(input$thresh_val)
+      req(input$lower_thresh_val, input$upper_thresh_val) # NEW: Added input$thresh_max_val requirement
       df_mod=df
-      if (!is.na(input$thresh_val)) {df_mod$val[!is.na(df_mod$val) & df_mod$val < input$thresh_val]=NA}
+      if (!is.na(input$lower_thresh_val)) {
+        df_mod$val[!is.na(df_mod$val) & df_mod$val < input$lower_thresh_val]=NA
+      }
+      # NEW: Upper threshold evaluation setting values > cutoff to NA
+      if (!is.na(input$upper_thresh_val)) {
+        df_mod$val[!is.na(df_mod$val) & df_mod$val > input$upper_thresh_val]=NA
+      }
       df_mod
     })
     
@@ -225,17 +232,17 @@ plot_skel=function(coords, data, template = rep(NA, length(data))) {
       cb_style=list(title = list(text = "Value", font = list(color = fg_3d)),tickfont = list(color = fg_3d))
       
       if (has_grey) 
-        {
+      {
         p=p %>% add_trace(x = d_grey$X, y = d_grey$Y, z = d_grey$Z,type = "scatter3d", mode = "markers",showscale = FALSE,showlegend = FALSE,
                           marker = list(
                             size = max(1, input$pt_size * 0.6),
                             color = grey_3d_col,
                             opacity = input$na_opacity)
-                          )
-        }
+        )
+      }
       
       if (has_na) 
-        {
+      {
         p=p %>% add_trace(x = d_na$X, y = d_na$Y, z = d_na$Z,type = "scatter3d", mode = "markers",showscale = show_cb_na,showlegend = FALSE,
                           marker = list(
                             size = max(1, input$pt_size * 0.6), 
@@ -245,11 +252,11 @@ plot_skel=function(coords, data, template = rep(NA, length(data))) {
                             cmax = val_range[2],
                             opacity = input$na_opacity,
                             colorbar = if (show_cb_na) cb_style else NULL)
-                          )
-        }
+        )
+      }
       
       if (has_valid) 
-        {
+      {
         p=p %>% add_trace(x = d_valid$X, y = d_valid$Y, z = d_valid$Z,type = "scatter3d", mode = "markers",showscale = show_cb_valid,name = "Data Overlay",
                           marker = list(
                             size = input$pt_size,
@@ -259,8 +266,8 @@ plot_skel=function(coords, data, template = rep(NA, length(data))) {
                             cmin = val_range[1],
                             cmax = val_range[2],
                             colorbar = if (show_cb_valid) cb_style else NULL)
-                        )
-        }
+        )
+      }
       
       make_axis=function(name) {
         list(
@@ -290,31 +297,31 @@ plot_skel=function(coords, data, template = rep(NA, length(data))) {
     
     # PNG Download handler
     output$download_2d_png=downloadHandler(filename = function() {
-        paste0("skeleton_2d_slices_X", input$x_slider, "_Y", input$y_slider, "_Z", input$z_slider, ".png")
-      },
-      content = function(file) {
-        bg_col=if (isTRUE(input$black_bg)) "black" else "white"
-        fg_col=if (isTRUE(input$black_bg)) "white" else "black"
-        
-        png(file, width = 2400, height = 950, res = 200)
-        
-        layout(matrix(c(1, 2, 3, 4, 4, 4), nrow = 2, byrow = TRUE), heights = c(4.2, 1))
-        
-        draw_sagittal()
-        draw_coronal()
-        draw_axial()
-        
-        cols=get_palette_colors(input$colorscale, 256)
-        x_vals=seq(val_range[1], val_range[2], length.out = 256)
-        
-        par(mar = c(3.5, 12, 1.5, 12))
-        image(x = x_vals,y = c(0, 1),z = matrix(rep(x_vals, 2), nrow = 256, ncol = 2),col = cols,axes = FALSE,xlab = "", ylab = "")
-        axis(1)
-        box()
-        mtext("Value", side = 3, line = 0.3, cex = 0.9, font = 2)
-        
-        dev.off()
-      }
+      paste0("skeleton_2d_slices_X", input$x_slider, "_Y", input$y_slider, "_Z", input$z_slider, ".png")
+    },
+    content = function(file) {
+      bg_col=if (isTRUE(input$black_bg)) "black" else "white"
+      fg_col=if (isTRUE(input$black_bg)) "white" else "black"
+      
+      png(file, width = 2400, height = 950, res = 200)
+      
+      layout(matrix(c(1, 2, 3, 4, 4, 4), nrow = 2, byrow = TRUE), heights = c(4.2, 1))
+      
+      draw_sagittal()
+      draw_coronal()
+      draw_axial()
+      
+      cols=get_palette_colors(input$colorscale, 256)
+      x_vals=seq(val_range[1], val_range[2], length.out = 256)
+      
+      par(mar = c(3.5, 12, 1.5, 12))
+      image(x = x_vals,y = c(0, 1),z = matrix(rep(x_vals, 2), nrow = 256, ncol = 2),col = cols,axes = FALSE,xlab = "", ylab = "")
+      axis(1)
+      box()
+      mtext("Value", side = 3, line = 0.3, cex = 0.9, font = 2)
+      
+      dev.off()
+    }
     )
   }
   
@@ -417,7 +424,7 @@ render_density_slice=function(dens_obj, slider_val, coord_range) {
 
 # Helper to render 2D slice scatter plots with optional dark background
 render_slice_2d=function(valid_pts, tmpl_pts, grey_pts, x_var, y_var,x_range, y_range, xlab, ylab, main_title,colorscale, val_range, pt_size, na_opacity,black_bg = FALSE) 
-  {
+{
   cex_val=pt_size * 0.35
   
   bg_col     =if (black_bg) "black" else "white"
