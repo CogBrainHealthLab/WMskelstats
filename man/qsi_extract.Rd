@@ -15,6 +15,7 @@ qsi_extract(
   dti_L = 1,
   nthread = 4,
   keep_maps = FALSE,
+  qsiprep_path = NULL,
   silent = FALSE
 )
 }
@@ -29,7 +30,7 @@ qsi_extract(
 
 \item{dti_tensor}{A string object stating the tensor to be used for applicable metrics estimation ('dtiTensor' or 'dkiTensor'). Default is dtiTensor. Argument ignored for QSIrecon output.}
 
-\item{dti_method}{A string object containing the method to be used for tensor-based estimations. If \code{dti_tensor} is 'dtiTensor', pptions include "nonlinear" (default), "linear", "quasi-likelihood"; if \code{dti_tensor} is 'dkiTensor', options include "CLLS-QP" (default), "CLLS-H", "ULLS", "QL", "NLR". Argument ignored for QSIrecon output.}
+\item{dti_method}{A string object containing the method to be used for tensor-based estimations. If \code{dti_tensor} is 'dtiTensor', options include "nonlinear", "linear" (default), "quasi-likelihood"; if \code{dti_tensor} is 'dkiTensor', options include "CLLS-QP" (default), "CLLS-H", "ULLS", "QL", "NLR". Argument ignored for QSIrecon output.}
 
 \item{dti_sigma}{An integer specifying the sigma value (scale parameter of the signal's distribution) to be used as part of the tensor estimation. Default is NULL. Argument ignored for QSIrecon output.}
 
@@ -39,11 +40,13 @@ qsi_extract(
 
 \item{keep_maps}{A logical object to determine whether files such as estimated tensor maps and coregistered maps are to be written in the \code{outputdir}. Default is FALSE.}
 
+\item{qsiprep_path}{A string containing the path to the QSIprep output (Optional). Ignored if inputdir and qsiprep_path are the same. Its purpose is for QSIrecon processing to retrieve ACPC-to-MNI152 transformation matrices if MNI152 coregistration was not done by QSIrecon. The QSIprep folder must have the same subjects and sessions as the the QSIrecon output.}
+
 \item{silent}{A logical object to determine whether messages will be silenced. Default is FALSE.}
 }
 \value{
 A list of 2D matrices, each matrix corresponding to one metric from
-\code{metrics}. Each element (skel_matrices$fa, skel_matrices$md, skel_matrices$ga, ...) is its own separate matrix: rows = sub_ses, columns = voxels. Additionally, the list contains the coordinates of the skeleton voxels (skel_coords matrix), the skeleton template they are based on, and the FA threshold selected.
+\code{metrics}. Each element (skel_matrices$fa, skel_matrices$md, skel_matrices$ga, ...) is its own separate matrix: rows = subjects (and sessions), columns = voxels. Additionally, the list contains the coordinates of the skeleton voxels (skel_coords matrix), the skeleton template they are based on, and the FA threshold selected.
 }
 \description{
 Extracts diffusion weighted imaging based metrics across a whole cohort datasets from QSIprep or QSIrecon pipeline outputs, masked into a common skeleton template, and merging them into single RDS files for each metric of interest.
