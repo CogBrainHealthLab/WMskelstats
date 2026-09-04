@@ -7,7 +7,7 @@
 skeleton_masker(skeleton_template, skeleton_fathreshold = 0.2)
 }
 \arguments{
-\item{skeleton_template}{The template FA skeleton (currently, only FMRIB58 2mm). It is optional as qsi_extract already preloads it when running skeleton_masker, but the latter function can load it by on its own if needed.}
+\item{skeleton_template}{A string object naming the template FA skeleton (currently, only 'FMRIB58_FA-skeleton_2mm') or a niftiImage object of the template loaded with RNifti. It is optional as qsi_extract already preloads it when running skeleton_masker, but the latter function can load it by on its own if needed.}
 
 \item{skeleton_fathreshold}{A numerical object with the (Fractional Anisotropy) threshold value with which to apply the template skeleton. Default is 0.2.}
 
