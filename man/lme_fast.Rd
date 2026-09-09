@@ -7,27 +7,20 @@
 lme_fast(Y, X, id, add_intercept = TRUE, gamma = 0.5)
 }
 \arguments{
-\item{Y}{A numeric matrix or data frame of dimensions \code{N x M}, where N is
-the number of observations and M is the number of outcome variables.}
+\item{Y}{A numeric matrix or data frame of dimensions N x M.}
 
-\item{X}{A numeric matrix or data frame of dimensions \code{N x p} containing
-the predictor variables.}
+\item{X}{A numeric matrix or data frame of dimensions N x p.}
 
-\item{id}{A vector of length N indicating group/cluster membership for each observation.}
+\item{id}{A vector of length N indicating group/cluster membership.}
 
-\item{add_intercept}{Logical. If \code{TRUE} (default), checks for an existing
-intercept column of 1s in \code{X} and prepends one if missing.}
+\item{add_intercept}{Logical. Checks for an existing intercept column and prepends one if missing.}
 
-\item{gamma}{Double. Variance ratio parameter (\eqn{\sigma^2_u / \sigma^2_e}).
-Defaults to 0.5.}
+\item{gamma}{Double. Variance ratio parameter. Defaults to 0.5.}
 }
 \value{
-A list containing:
-\item{t_stat}{A matrix of dimensions \code{p x M} containing t-statistics for each predictor and outcome.}
-\item{coefficients}{A matrix of dimensions \code{p x M} containing estimated fixed-effect coefficients (\eqn{\beta}).}
+A list containing matrices for t_stat and coefficients.
 }
 \description{
 Fits random-intercept linear mixed models across multiple outcome variables
-(columns of Y) simultaneously against a single design matrix X. Highly efficient
-for high-throughput screening (e.g., GWAS, EWAS, transcriptomics).
+(columns of Y) simultaneously against a single design matrix X.
 }

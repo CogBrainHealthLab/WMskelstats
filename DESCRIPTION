@@ -22,8 +22,17 @@ RoxygenNote: 7.3.3
 SystemRequirements: 
 Depends: 
     R (>= 4.0.0)
-Imports: 
-      reticulate,
-      dti,
-      RNifti,
-      rpyANTs
+Imports:
+    dti,
+    shiny,
+    graphics,
+    grDevices,
+    plotly,
+    magrittr,
+    Rcpp (>= 1.0.0),
+    reticulate,
+    RNifti,
+    rpyANTs
+LinkingTo: 
+    Rcpp,
+    RcppArmadillo
