@@ -4,7 +4,7 @@
 \alias{calc_tfce_3d}
 \title{Threshold-Free Cluster Enhancement (TFCE) in 3D}
 \usage{
-calc_tfce_3d(t_stat, E = 0.5, H = 2, dh = 0.1, connectivity = 26)
+calc_tfce_3d(t_stat, E = 0.5, H = 2, dh = 0.1, connectivity = 26, tail = 2)
 }
 \arguments{
 \item{t_stat}{3D array of t-statistics.}
@@ -13,9 +13,11 @@ calc_tfce_3d(t_stat, E = 0.5, H = 2, dh = 0.1, connectivity = 26)
 
 \item{H}{Height exponent (default = 2.0).}
 
-\item{dh}{Step size (default = 0.1).}
+\item{dh}{Step size (default = 0.1; set to 0 for auto step size dh = max|t|/100).}
 
 \item{connectivity}{Neighborhood connectivity: 6, 18, or 26 (default = 26).}
+
+\item{tail}{Type of test: 1 (positive tail), -1 (negative tail), or 2 (two-tailed, default = 2).}
 }
 \value{
 3D array of TFCE statistics.

@@ -11,7 +11,8 @@ NumericVector calc_tfce_cpp(NumericVector t_stat,
                             double E = 0.5,
                             double H = 2.0,
                             double dh = 0.1,
-                            int connectivity = 26) {
+                            int connectivity = 26,
+                            int tail = 2) {
     int nx = dims[0];
     int ny = dims[1];
     int nz = dims[2];
@@ -21,14 +22,24 @@ NumericVector calc_tfce_cpp(NumericVector t_stat,
     double max_val = 0.0;
     std::vector<bool> is_na(n_voxels, false);
 
+    // Identify peak t-statistic bound based on specified tail
     for (int i = 0; i < n_voxels; ++i) {
         if (NumericVector::is_na(t_stat[i]) || std::isnan(t_stat[i])) {
             is_na[i] = true;
             tfce_map[i] = NA_REAL;
         } else {
             tfce_map[i] = 0.0;
-            if (t_stat[i] > max_val) {
-                max_val = t_stat[i];
+            double val = 0.0;
+            if (tail == 1) {
+                val = t_stat[i];
+            } else if (tail == -1) {
+                val = -t_stat[i];
+            } else if (tail == 2) {
+                val = std::abs(t_stat[i]);
+            }
+
+            if (val > max_val) {
+                max_val = val;
             }
         }
     }
@@ -38,6 +49,12 @@ NumericVector calc_tfce_cpp(NumericVector t_stat,
         return tfce_map;
     }
 
+    // Auto step size dh = max_val / 100 if dh <= 0
+    if (dh <= 0.0) {
+        dh = max_val / 100.0;
+    }
+
+    // Define neighbor offsets for 3D connectivity options
     std::vector<int> dx, dy, dz;
     for (int x = -1; x <= 1; ++x) {
         for (int y = -1; y <= 1; ++y) {
@@ -63,57 +80,75 @@ NumericVector calc_tfce_cpp(NumericVector t_stat,
     cluster_indices.reserve(10000);
     std::queue<int> q;
 
-    for (double h = dh; h <= max_val + 1e-7; h += dh) {
-        current_visited_flag++;
-        double h_factor = std::pow(h, H) * dh;
+    // Set evaluation direction: [+1] for positive, [-1] for negative, [+1, -1] for two-tailed
+    std::vector<int> signs;
+    if (tail == 1) {
+        signs.push_back(1);
+    } else if (tail == -1) {
+        signs.push_back(-1);
+    } else if (tail == 2) {
+        signs.push_back(1);
+        signs.push_back(-1);
+    }
 
-        for (int z = 0; z < nz; ++z) {
-            for (int y = 0; y < ny; ++y) {
-                for (int x = 0; x < nx; ++x) {
-                    int idx = x + nx * (y + ny * z);
+    for (int sign : signs) {
+        for (double h = dh; h <= max_val + 1e-7; h += dh) {
+            current_visited_flag++;
+            double h_factor = std::pow(h, H) * dh;
 
-                    if (is_na[idx] || t_stat[idx] < h || visited[idx] == current_visited_flag) {
-                        continue;
-                    }
+            for (int z = 0; z < nz; ++z) {
+                for (int y = 0; y < ny; ++y) {
+                    for (int x = 0; x < nx; ++x) {
+                        int idx = x + nx * (y + ny * z);
 
-                    cluster_indices.clear();
-                    q.push(idx);
-                    visited[idx] = current_visited_flag;
+                        if (is_na[idx]) continue;
 
-                    while (!q.empty()) {
-                        int curr = q.front();
-                        q.pop();
-                        cluster_indices.push_back(curr);
+                        double voxel_val = t_stat[idx] * sign;
 
-                        int cz = curr / (nx * ny);
-                        int rem = curr % (nx * ny);
-                        int cy = rem / nx;
-                        int cx = rem % nx;
+                        if (voxel_val < h || visited[idx] == current_visited_flag) {
+                            continue;
+                        }
 
-                        for (int k = 0; k < n_neighbors; ++k) {
-                            int nx_pos = cx + dx[k];
-                            int ny_pos = cy + dy[k];
-                            int nz_pos = cz + dz[k];
+                        // Breadth-first search for connected components
+                        cluster_indices.clear();
+                        q.push(idx);
+                        visited[idx] = current_visited_flag;
 
-                            if (nx_pos >= 0 && nx_pos < nx &&
-                                ny_pos >= 0 && ny_pos < ny &&
-                                nz_pos >= 0 && nz_pos < nz) {
+                        while (!q.empty()) {
+                            int curr = q.front();
+                            q.pop();
+                            cluster_indices.push_back(curr);
 
-                                int nbr_idx = nx_pos + nx * (ny_pos + ny * nz_pos);
+                            int cz = curr / (nx * ny);
+                            int rem = curr % (nx * ny);
+                            int cy = rem / nx;
+                            int cx = rem % nx;
 
-                                if (!is_na[nbr_idx] && t_stat[nbr_idx] >= h && visited[nbr_idx] != current_visited_flag) {
-                                    visited[nbr_idx] = current_visited_flag;
-                                    q.push(nbr_idx);
+                            for (int k = 0; k < n_neighbors; ++k) {
+                                int nx_pos = cx + dx[k];
+                                int ny_pos = cy + dy[k];
+                                int nz_pos = cz + dz[k];
+
+                                if (nx_pos >= 0 && nx_pos < nx &&
+                                    ny_pos >= 0 && ny_pos < ny &&
+                                    nz_pos >= 0 && nz_pos < nz) {
+
+                                    int nbr_idx = nx_pos + nx * (ny_pos + ny * nz_pos);
+
+                                    if (!is_na[nbr_idx] && (t_stat[nbr_idx] * sign) >= h && visited[nbr_idx] != current_visited_flag) {
+                                        visited[nbr_idx] = current_visited_flag;
+                                        q.push(nbr_idx);
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    double extent = static_cast<double>(cluster_indices.size());
-                    double tfce_inc = std::pow(extent, E) * h_factor;
+                        double extent = static_cast<double>(cluster_indices.size());
+                        double tfce_inc = sign * std::pow(extent, E) * h_factor;
 
-                    for (int member_idx : cluster_indices) {
-                        tfce_map[member_idx] += tfce_inc;
+                        for (int member_idx : cluster_indices) {
+                            tfce_map[member_idx] += tfce_inc;
+                        }
                     }
                 }
             }

@@ -12,8 +12,8 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // calc_tfce_cpp
-NumericVector calc_tfce_cpp(NumericVector t_stat, IntegerVector dims, double E, double H, double dh, int connectivity);
-RcppExport SEXP _WMskelstats_calc_tfce_cpp(SEXP t_statSEXP, SEXP dimsSEXP, SEXP ESEXP, SEXP HSEXP, SEXP dhSEXP, SEXP connectivitySEXP) {
+NumericVector calc_tfce_cpp(NumericVector t_stat, IntegerVector dims, double E, double H, double dh, int connectivity, int tail);
+RcppExport SEXP _WMskelstats_calc_tfce_cpp(SEXP t_statSEXP, SEXP dimsSEXP, SEXP ESEXP, SEXP HSEXP, SEXP dhSEXP, SEXP connectivitySEXP, SEXP tailSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -23,7 +23,8 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< double >::type H(HSEXP);
     Rcpp::traits::input_parameter< double >::type dh(dhSEXP);
     Rcpp::traits::input_parameter< int >::type connectivity(connectivitySEXP);
-    rcpp_result_gen = Rcpp::wrap(calc_tfce_cpp(t_stat, dims, E, H, dh, connectivity));
+    Rcpp::traits::input_parameter< int >::type tail(tailSEXP);
+    rcpp_result_gen = Rcpp::wrap(calc_tfce_cpp(t_stat, dims, E, H, dh, connectivity, tail));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -57,7 +58,7 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_WMskelstats_calc_tfce_cpp", (DL_FUNC) &_WMskelstats_calc_tfce_cpp, 6},
+    {"_WMskelstats_calc_tfce_cpp", (DL_FUNC) &_WMskelstats_calc_tfce_cpp, 7},
     {"_WMskelstats_fast_rint_reg_multi_y_cpp", (DL_FUNC) &_WMskelstats_fast_rint_reg_multi_y_cpp, 5},
     {"_WMskelstats_cpp_smooth_voxel_matrix", (DL_FUNC) &_WMskelstats_cpp_smooth_voxel_matrix, 3},
     {NULL, NULL, 0}
