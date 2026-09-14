@@ -1,66 +1,139 @@
-#' Fast Linear Mixed Effects Model with Random Intercepts for Multiple Outcomes
+#' Voxel-wise REML random-intercept models
 #'
-#' Fits random-intercept linear mixed models across multiple outcome variables 
-#' (columns of Y) simultaneously against a single design matrix X.
+#' @param Y Numeric N x M matrix of outcomes.
+#' @param X Numeric N x P design matrix, optionally without an intercept.
+#' @param id Participant/group identifiers of length N.
+#' @param add_intercept Add an intercept unless one already exists.
+#' @param gamma_max Upper bound for the random/residual variance ratio.
+#' @param tol Optimization tolerance on log(1 + gamma).
+#' @param max_iter Maximum iterations per optimization bracket.
+#' @param grid_size Number of initial variance-ratio search points.
 #'
-#' @param Y A numeric matrix or data frame of dimensions N x M.
-#' @param X A numeric matrix or data frame of dimensions N x p.
-#' @param id A vector of length N indicating group/cluster membership.
-#' @param add_intercept Logical. Checks for an existing intercept column and prepends one if missing.
-#' @param gamma Double. Variance ratio parameter. Defaults to 0.5.
-#'
-#' @return A list containing matrices for t_stat and coefficients.
-#' @useDynLib WMskelstats, .registration = TRUE
-#' @importFrom Rcpp evalCpp
+#' @return List containing coefficients, standard errors, t-statistics,
+#'   variance estimates, and fitting status for each outcome.
 #' @export
-lme_fast <- function(Y, X, id, add_intercept = TRUE, gamma = 0.5) {
-  if (missing(Y) || missing(X) || missing(id)) {
-    stop("Arguments 'Y', 'X', and 'id' must all be provided.")
+lme_fast <- function(
+    Y, X, id,
+    add_intercept = TRUE,
+    gamma_max = 1e8,
+    tol = 1e-5,
+    max_iter = 100L,
+    grid_size = 9L) {
+  
+  X <- as.matrix(X)
+  Y <- as.matrix(Y)
+  
+  if (!is.numeric(X) || !is.numeric(Y)) {
+    stop("X and Y must be numeric; dummy-code categorical predictors.")
   }
   
-  X_mat <- as.matrix(X)
-  Y_mat <- as.matrix(Y)
-  
-  if (nrow(X_mat) != nrow(Y_mat) || length(id) != nrow(Y_mat)) {
-    stop("Row dimensions of 'X', 'Y', and length of 'id' must match.")
+  if (nrow(X) != nrow(Y) || length(id) != nrow(Y)) {
+    stop("Rows of X and Y and length(id) must match.")
   }
   
-  if (add_intercept) {
-    has_intercept <- any(apply(X_mat, 2, function(col) all(col == 1)))
-    if (!has_intercept) {
-      X_mat <- cbind("(Intercept)" = 1, X_mat)
-    }
+  if (ncol(X) < 1L || ncol(Y) < 1L) {
+    stop("X and Y must each contain at least one column.")
   }
   
-  ord <- order(id)
-  Y_sorted <- Y_mat[ord, , drop = FALSE]
-  X_sorted <- X_mat[ord, , drop = FALSE]
-  id_sorted <- id[ord]
+  if (anyNA(id) || any(!is.finite(X)) || any(!is.finite(Y))) {
+    stop("Missing/nonfinite values are not supported. Prepare a common complete dataset first.")
+  }
   
-  sizes <- as.numeric(table(id_sorted))
-  offsets <- c(0, cumsum(sizes)[-length(sizes)])
+  if (!is.logical(add_intercept) ||
+      length(add_intercept) != 1L ||
+      is.na(add_intercept)) {
+    stop("add_intercept must be TRUE or FALSE.")
+  }
   
-  # Execute pre-compiled package C++ routine
+  if (length(gamma_max) != 1L ||
+      !is.finite(gamma_max) || gamma_max <= 0 ||
+      length(tol) != 1L || !is.finite(tol) || tol <= 0) {
+    stop("gamma_max and tol must be positive finite scalars.")
+  }
+  
+  if (length(max_iter) != 1L ||
+      !is.finite(max_iter) || max_iter < 1 ||
+      max_iter != floor(max_iter) ||
+      length(grid_size) != 1L ||
+      !is.finite(grid_size) || grid_size < 5 ||
+      grid_size != floor(grid_size)) {
+    stop("max_iter and grid_size must be integers, with grid_size >= 5.")
+  }
+  
+  if (is.null(colnames(X))) {
+    colnames(X) <- paste0("X", seq_len(ncol(X)))
+  }
+  
+  if (add_intercept &&
+      !any(vapply(seq_len(ncol(X)),
+                  function(k) all(X[, k] == 1),
+                  logical(1)))) {
+    X <- cbind("(Intercept)" = 1, X)
+  }
+  
+  if (nrow(X) <= ncol(X)) {
+    stop("Insufficient residual degrees of freedom.")
+  }
+  
+  # Scale design columns for numerical stability.
+  # This does not change the fitted model.
+  x_scale <- sqrt(colMeans(X^2))
+  
+  if (any(!is.finite(x_scale)) || any(x_scale == 0)) {
+    stop("X contains a zero or numerically invalid column.")
+  }
+  
+  X_scaled <- sweep(X, 2L, x_scale, "/")
+  
+  if (qr(X_scaled)$rank < ncol(X_scaled)) {
+    stop("X is rank deficient; remove redundant predictors.")
+  }
+  
+  # Integer codes avoid ordering problems with numeric versus text IDs.
+  id_code <- match(id, unique(id))
+  ord <- order(id_code)
+  sizes <- tabulate(id_code)
+  
+  if (length(sizes) < 2L || !any(sizes > 1L)) {
+    stop("Variance-component estimation requires multiple participants and repeated observations.")
+  }
+  
+  offsets <- c(0, head(cumsum(sizes), -1L))
+  
   res <- fast_rint_reg_multi_y_cpp(
-    Y = Y_sorted,
-    X = X_sorted,
+    Y = Y[ord, , drop = FALSE],
+    X = X_scaled[ord, , drop = FALSE],
     group_offsets = offsets,
     group_sizes = sizes,
-    gamma = gamma
+    gamma_max = gamma_max,
+    tol = tol,
+    max_iter = as.integer(max_iter),
+    grid_size = as.integer(grid_size)
   )
   
-  x_names <- colnames(X_mat)
-  if (is.null(x_names)) {
-    x_names <- c("(Intercept)", paste0("X", seq_len(ncol(X_mat) - 1)))
-  }
+  # Convert coefficients and SEs back to original predictor units.
+  res$coefficients <- sweep(res$coefficients, 1L, x_scale, "/")
+  res$std_error <- sweep(res$std_error, 1L, x_scale, "/")
   
-  y_names <- colnames(Y_mat)
+  y_names <- colnames(Y)
   if (is.null(y_names)) {
-    y_names <- paste0("Y", seq_len(ncol(Y_mat)))
+    y_names <- paste0("Y", seq_len(ncol(Y)))
   }
   
-  dimnames(res$coefficients) <- list(x_names, y_names)
-  dimnames(res$t_stat)       <- list(x_names, y_names)
+  for (nm in c("coefficients", "std_error", "t_stat")) {
+    dimnames(res[[nm]]) <- list(colnames(X), y_names)
+  }
   
-  return(res)
+  for (nm in c("var_random", "var_residual", "gamma", "status")) {
+    names(res[[nm]]) <- y_names
+  }
+  
+  if (any(res$status != 0L)) {
+    warning(
+      "Some voxels require inspection: status 1 = upper bound; ",
+      "2 = failed/degenerate/unidentified; 3 = iteration limit."
+    )
+  }
+  
+  res
 }

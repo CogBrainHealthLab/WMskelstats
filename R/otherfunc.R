@@ -22,7 +22,6 @@ get_clusters <- function(img_3d, min_size = 2, connectivity = 26) {
   
   # Empty result dataframe structure
   empty_df <- data.frame(
-    cluster_id   = integer(0),
     cluster_size = integer(0),
     max_value    = numeric(0),
     x            = integer(0),
@@ -56,9 +55,8 @@ get_clusters <- function(img_3d, min_size = 2, connectivity = 26) {
     peak <- sub_df[max_idx, ]
     
     data.frame(
-      cluster_id   = peak$cluster,
       cluster_size = nrow(sub_df),
-      max_value    = peak$val,
+      max_value    = round(peak$val,4),
       x            = peak$x,
       y            = peak$y,
       z            = peak$z
@@ -196,4 +194,32 @@ perm_between=function(random)
     perm.idx[sub.idx]=sub.idx
   }
   return(perm.idx)
+}
+
+
+## Efficient way to extract t statistics from linear regression models to speed up the permutation process
+## adapted from https://stackoverflow.com/questions/15820623/obtain-t-statistic-for-regression-coefficients-of-an-mlm-object-returned-by-l
+extract.t=function(mod,row)
+{
+  p = mod$rank
+  df.residual=NROW(mod$residuals)-NROW(mod$coefficients)
+  rdf = df.residual
+  Qr = mod$qr
+  p1 = 1L:p
+  r = mod$residuals
+  R = chol2inv(Qr[p1, p1, drop = FALSE])  
+  if(is.matrix(mod$coefficients))
+  {
+    rss = colSums(r^2)
+    resvar = rss/rdf 
+    se = (sqrt(diag(R) %*% t(resvar)))[row,]
+    est = mod$coefficients[row,]
+  } else {
+    rss = sum(r^2)
+    resvar = rss/rdf
+    se = (sqrt(diag(R) * resvar))[row]
+    est = mod$coefficients[row]
+  }
+  tval = est/se 
+  return(tval)
 }

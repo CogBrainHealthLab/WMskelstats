@@ -25,6 +25,8 @@ Depends:
 Imports:
     dti,
     shiny,
+    mori,
+    mmand,
     graphics,
     grDevices,
     plotly,

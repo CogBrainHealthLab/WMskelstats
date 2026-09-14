@@ -8,9 +8,9 @@ using namespace Rcpp;
 // [[Rcpp::export]]
 NumericVector calc_tfce_cpp(NumericVector t_stat,
                             IntegerVector dims,
-                            double E = 0.5,
+                            double E = 1,
                             double H = 2.0,
-                            double dh = 0.1,
+                            double dh = 0.0,
                             int connectivity = 26,
                             int tail = 2) {
     int nx = dims[0];
@@ -49,9 +49,15 @@ NumericVector calc_tfce_cpp(NumericVector t_stat,
         return tfce_map;
     }
 
-    // Auto step size dh = max_val / 100 if dh <= 0
-    if (dh <= 0.0) {
-        dh = max_val / 100.0;
+    // R must supply the same positive dh for the observed map
+    // and every permuted map.
+    if (!std::isfinite(dh) || dh <= 0.0) {
+        stop("dh must be finite and positive. Calculate it once "
+            "from the observed map and reuse it for all permutations.");
+    }
+
+    if (!std::isfinite(max_val)) {
+        stop("The t-statistic map must not contain infinite values.");
     }
 
     // Define neighbor offsets for 3D connectivity options
@@ -92,10 +98,17 @@ NumericVector calc_tfce_cpp(NumericVector t_stat,
     }
 
     for (int sign : signs) {
-        for (double h = dh; h <= max_val + 1e-7; h += dh) {
-            current_visited_flag++;
-            double h_factor = std::pow(h, H) * dh;
+        for (double height_index = 1.0; ; height_index += 1.0) {
+            double h = height_index * dh;
 
+            if (h > max_val) {
+                break;
+            }
+
+            Rcpp::checkUserInterrupt();
+
+            current_visited_flag++;
+            double h_factor = std::pow(h, H);
             for (int z = 0; z < nz; ++z) {
                 for (int y = 0; y < ny; ++y) {
                     for (int x = 0; x < nx; ++x) {

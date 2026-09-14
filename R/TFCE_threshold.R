@@ -24,7 +24,7 @@ TFCE_threshold=function(TFCEoutput, p=0.05,  k=20)
   tfce.p=rep(NA,n_vox)
   
   TFCEoutput$t_stat[is.na(TFCEoutput$t_stat)]=0
-  for (vox in 1:n_vox)  {tfce.p[vox]=length(which(TFCEoutput$TFCE.max>abs(TFCEoutput$TFCE.orig$value[vox])))/nperm}
+  for (vox in 1:n_vox)  {tfce.p[vox]= (1 + sum(TFCEoutput$TFCE.max >=abs(TFCEoutput$TFCE.orig$value[vox]))) / (nperm + 1)}
   TFCEoutput$t_stat[is.na(TFCEoutput$t_stat)]=0
   
   t_stat.thresholdedP=TFCEoutput$t_stat
@@ -37,7 +37,7 @@ TFCE_threshold=function(TFCEoutput, p=0.05,  k=20)
     pos.t_stat.thresholdedP=t_stat.thresholdedP
     pos.t_stat.thresholdedP[pos.t_stat.thresholdedP<0]=0
     pos.t_stat.thresholdedP.vol=WMskelstats:::df_to_vol(coords = data.matrix(check[,c("x","y","z")]), data=pos.t_stat.thresholdedP)   
-    pos.clust.results=get_clusters(pos.t_stat.thresholdedP.vol,min_size = k)
+    pos.clust.results=WMskelstats:::get_clusters(pos.t_stat.thresholdedP.vol,min_size = k)
     if(NROW(pos.clust.results)==0)
     {
       pos.clust.results="No significant clusters"
@@ -49,7 +49,7 @@ TFCE_threshold=function(TFCEoutput, p=0.05,  k=20)
     neg.t_stat.thresholdedP=t_stat.thresholdedP
     neg.t_stat.thresholdedP[neg.t_stat.thresholdedP>0]=0
     neg.t_stat.thresholdedP.vol=WMskelstats:::df_to_vol(coords = data.matrix(check[,c("x","y","z")]), data=neg.t_stat.thresholdedP)   
-    neg.clust.results=get_clusters(neg.t_stat.thresholdedP.vol,min_size = k)
+    neg.clust.results=WMskelstats:::get_clusters(neg.t_stat.thresholdedP.vol,min_size = k)
     if(NROW(neg.clust.results)==0)
     {
     neg.clust.results="No significant clusters"
@@ -66,7 +66,7 @@ TFCE_threshold=function(TFCEoutput, p=0.05,  k=20)
     
   } else if(TFCEoutput$tail==1)
   {
-    clust.results=list(pos.clust.results,"Negative contrast not analyzed, only negative one-tailed TFCE statistics were estimated")
+    clust.results=list(pos.clust.results,"Negative contrast not analyzed, only positive one-tailed TFCE statistics were estimated")
     t_stat.thresholded.return=pos.t_stat.thresholdedP
     pos.mask=pos.t_stat.thresholdedP
     pos.mask[pos.mask>0]=1
@@ -80,6 +80,7 @@ TFCE_threshold=function(TFCEoutput, p=0.05,  k=20)
     neg.mask[neg.mask<0]=1
   }
   
+  names(clust.results)=c("Positive contrast", "Negative contrasts")
   t_stat.thresholded.return[t_stat.thresholded.return==0]=NA
   returnobj=list(clust.results,TFCEoutput$t_stat,t_stat.thresholded.return,pos.mask,neg.mask)
   names(returnobj)=c("cluster_level_results",
