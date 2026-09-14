@@ -20,8 +20,7 @@
 #' @returns A list of 2D matrices, each matrix corresponding to one metric from 
 #' `metrics`. Each element (skel_matrices$fa, skel_matrices$md, skel_matrices$ga, ...) is its own separate matrix: rows = subjects (and sessions), columns = voxels. Additionally, the list contains the coordinates of the skeleton voxels (skel_coords matrix), the skeleton template they are based on, and the FA threshold selected. 
 #' 
-#' @examples
-#' SCMvextract(sdirpath = "subcortexmesh_output_metrics", 
+#' @examples SCMvextract(sdirpath = "subcortexmesh_output_metrics", 
 #' outputdir=paste0(tempdir(), "\\subcortices"), template='fsaverage', measure="surfarea") 
 #' @importFrom dti readDWIdata dtiTensor dkiTensor dtiIndices dkiIndices setmask
 #' @importFrom rpyANTs load_ants ants_apply_transforms
@@ -63,8 +62,16 @@ qsi_extract=function(inputdir,
   #Premake thresholded skeleton mask 
   skeleton_mask = skeleton_masker(skeleton_template=skeleton_template, 
                                   skeleton_fathreshold=skeleton_fathreshold)
+  #reorder coordinates for later use (will also be reordered for subject data)
+  skel_coords=skeleton_mask[[2]] 
+  skeleton_mask[[2]]=skel_coords[order(skel_coords[,'x'], skel_coords[,'y'], skel_coords[,'z']), ] 
+  
+  #Preoading ants 
+  if(!silent){message(paste0("Preloading ANTs..."))}
+  ants <- rpyANTs::load_ants()
+  
   #save metadata including template, threshold, skeleton mask coordinates in a list to be appended for later rebuild
-  metadata=list(skeleton_mask[[2]],template, skeleton_fathreshold)
+  metadata=list(skel_coords,template, skeleton_fathreshold)
   names(metadata)=c('skel_coords','skel_template','skel_threshold')
   
   #clear dtiDataobj in case these are also in the environment
@@ -268,7 +275,6 @@ qsi_extract=function(inputdir,
                 interpolator = "linear",
                 transformlist = list()   #no transform needed as same grid
               )
-              ants <- rpyANTs::load_ants()
               
               #save to dedicated folder if needed
               if(keep_maps){
@@ -303,8 +309,9 @@ qsi_extract=function(inputdir,
         stop("The FA skeleton template does not share the subject's map dimensions. The downsampling to 2mm may have failed.")}
         #Get subject values in the template skeleton mask
         #vectorise values and give it the name of subject/ses
-        subj_skeleton=matrix(metrics_array[skeleton_mask[[1]]==1], 
+        subj_skeleton=matrix(metrics_array[skeleton_mask[[2]]==1], 
                            nrow=1, dimnames=list(sub_s, NULL))
+        
         skel_list[[paste0('skel_',m)]][[sub_s]] = subj_skeleton
       }
       
@@ -435,6 +442,8 @@ skeleton_masker=function(skeleton_template, skeleton_fathreshold=0.2){
   
   #keep voxel coordinates of the mask for later rebuild
   skeleton_bin_coords <- which(skeleton_bin == 1, arr.ind = TRUE)
+  #LAS coordinates for FMRIB (see RNifti::orientation(skeleton_template):
+  colnames(skeleton_bin_coords)=c('x','y','z')
   
   return(list(skeleton_bin,skeleton_bin_coords))
 }
@@ -487,7 +496,6 @@ ACPC_to_MNI152=function(mapfile, transform_path, qsiprep_path, keep_maps){
   ############################
   #save coregistered map if needed
   if(keep_maps){
-    ants <- rpyANTs::load_ants()
     mapdirmni152=paste0(outputdir,'\\',m,'_maps_MNI152')
     dir.create(mapdirmni152, showWarnings=FALSE)
     mapfile_coreg=paste0(mapdirmni152,"\\",sub_s,"_",m,"_map_MNI152.nii.gz")
