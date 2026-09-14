@@ -309,9 +309,8 @@ qsi_extract=function(inputdir,
         stop("The FA skeleton template does not share the subject's map dimensions. The downsampling to 2mm may have failed.")}
         #Get subject values in the template skeleton mask
         #vectorise values and give it the name of subject/ses
-        subj_skeleton=matrix(metrics_array[skeleton_mask[[2]]==1], 
-                           nrow=1, dimnames=list(sub_s, NULL))
-        
+        subj_skeleton <- matrix(metrics_array[skeleton_mask[[2]]], nrow = 1,
+                                dimnames = list(sub_s, NULL))
         skel_list[[paste0('skel_',m)]][[sub_s]] = subj_skeleton
       }
       
