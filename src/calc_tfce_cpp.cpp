@@ -1,0 +1,173 @@
+#include <Rcpp.h>
+#include <vector>
+#include <cmath>
+#include <queue>
+
+using namespace Rcpp;
+
+// [[Rcpp::export]]
+NumericVector calc_tfce_cpp(NumericVector t_stat,
+                            IntegerVector dims,
+                            double E = 1,
+                            double H = 2.0,
+                            double dh = 0.0,
+                            int connectivity = 26,
+                            int tail = 2) {
+    int nx = dims[0];
+    int ny = dims[1];
+    int nz = dims[2];
+    int n_voxels = nx * ny * nz;
+
+    NumericVector tfce_map(n_voxels);
+    double max_val = 0.0;
+    std::vector<bool> is_na(n_voxels, false);
+
+    // Identify peak t-statistic bound based on specified tail
+    for (int i = 0; i < n_voxels; ++i) {
+        if (NumericVector::is_na(t_stat[i]) || std::isnan(t_stat[i])) {
+            is_na[i] = true;
+            tfce_map[i] = NA_REAL;
+        } else {
+            tfce_map[i] = 0.0;
+            double val = 0.0;
+            if (tail == 1) {
+                val = t_stat[i];
+            } else if (tail == -1) {
+                val = -t_stat[i];
+            } else if (tail == 2) {
+                val = std::abs(t_stat[i]);
+            }
+
+            if (val > max_val) {
+                max_val = val;
+            }
+        }
+    }
+
+    if (max_val <= 0.0) {
+        tfce_map.attr("dim") = dims;
+        return tfce_map;
+    }
+
+    // R must supply the same positive dh for the observed map
+    // and every permuted map.
+    if (!std::isfinite(dh) || dh <= 0.0) {
+        stop("dh must be finite and positive. Calculate it once "
+            "from the observed map and reuse it for all permutations.");
+    }
+
+    if (!std::isfinite(max_val)) {
+        stop("The t-statistic map must not contain infinite values.");
+    }
+
+    // Define neighbor offsets for 3D connectivity options
+    std::vector<int> dx, dy, dz;
+    for (int x = -1; x <= 1; ++x) {
+        for (int y = -1; y <= 1; ++y) {
+            for (int z = -1; z <= 1; ++z) {
+                if (x == 0 && y == 0 && z == 0) continue;
+                int dist_sq = x * x + y * y + z * z;
+                if ((connectivity == 6 && dist_sq == 1) ||
+                    (connectivity == 18 && dist_sq <= 2) ||
+                    (connectivity == 26)) {
+                    dx.push_back(x);
+                    dy.push_back(y);
+                    dz.push_back(z);
+                }
+            }
+        }
+    }
+    int n_neighbors = dx.size();
+
+    std::vector<int> visited(n_voxels, 0);
+    int current_visited_flag = 0;
+
+    std::vector<int> cluster_indices;
+    cluster_indices.reserve(10000);
+    std::queue<int> q;
+
+    // Set evaluation direction: [+1] for positive, [-1] for negative, [+1, -1] for two-tailed
+    std::vector<int> signs;
+    if (tail == 1) {
+        signs.push_back(1);
+    } else if (tail == -1) {
+        signs.push_back(-1);
+    } else if (tail == 2) {
+        signs.push_back(1);
+        signs.push_back(-1);
+    }
+
+    for (int sign : signs) {
+        for (double height_index = 1.0; ; height_index += 1.0) {
+            double h = height_index * dh;
+
+            if (h > max_val) {
+                break;
+            }
+
+            Rcpp::checkUserInterrupt();
+
+            current_visited_flag++;
+            double h_factor = std::pow(h, H);
+            for (int z = 0; z < nz; ++z) {
+                for (int y = 0; y < ny; ++y) {
+                    for (int x = 0; x < nx; ++x) {
+                        int idx = x + nx * (y + ny * z);
+
+                        if (is_na[idx]) continue;
+
+                        double voxel_val = t_stat[idx] * sign;
+
+                        if (voxel_val < h || visited[idx] == current_visited_flag) {
+                            continue;
+                        }
+
+                        // Breadth-first search for connected components
+                        cluster_indices.clear();
+                        q.push(idx);
+                        visited[idx] = current_visited_flag;
+
+                        while (!q.empty()) {
+                            int curr = q.front();
+                            q.pop();
+                            cluster_indices.push_back(curr);
+
+                            int cz = curr / (nx * ny);
+                            int rem = curr % (nx * ny);
+                            int cy = rem / nx;
+                            int cx = rem % nx;
+
+                            for (int k = 0; k < n_neighbors; ++k) {
+                                int nx_pos = cx + dx[k];
+                                int ny_pos = cy + dy[k];
+                                int nz_pos = cz + dz[k];
+
+                                if (nx_pos >= 0 && nx_pos < nx &&
+                                    ny_pos >= 0 && ny_pos < ny &&
+                                    nz_pos >= 0 && nz_pos < nz) {
+
+                                    int nbr_idx = nx_pos + nx * (ny_pos + ny * nz_pos);
+
+                                    if (!is_na[nbr_idx] && (t_stat[nbr_idx] * sign) >= h && visited[nbr_idx] != current_visited_flag) {
+                                        visited[nbr_idx] = current_visited_flag;
+                                        q.push(nbr_idx);
+                                    }
+                                }
+                            }
+                        }
+
+                        double extent = static_cast<double>(cluster_indices.size());
+                        double tfce_inc = sign * std::pow(extent, E) * h_factor;
+
+                        for (int member_idx : cluster_indices) {
+                            tfce_map[member_idx] += tfce_inc;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    tfce_map.attr("dim") = dims;
+    return tfce_map;
+}

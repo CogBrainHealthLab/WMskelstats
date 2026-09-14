@@ -2,32 +2,40 @@
 % Please edit documentation in R/lme_fast.R
 \name{lme_fast}
 \alias{lme_fast}
-\title{Fast Linear Mixed Effects Model with Random Intercepts for Multiple Outcomes}
+\title{Voxel-wise REML random-intercept models}
 \usage{
-lme_fast(Y, X, id, add_intercept = TRUE, gamma = 0.5)
+lme_fast(
+  Y,
+  X,
+  id,
+  add_intercept = TRUE,
+  gamma_max = 1e+08,
+  tol = 1e-05,
+  max_iter = 100L,
+  grid_size = 9L
+)
 }
 \arguments{
-\item{Y}{A numeric matrix or data frame of dimensions \code{N x M}, where N is
-the number of observations and M is the number of outcome variables.}
+\item{Y}{Numeric N x M matrix of outcomes.}
 
-\item{X}{A numeric matrix or data frame of dimensions \code{N x p} containing
-the predictor variables.}
+\item{X}{Numeric N x P design matrix, optionally without an intercept.}
 
-\item{id}{A vector of length N indicating group/cluster membership for each observation.}
+\item{id}{Participant/group identifiers of length N.}
 
-\item{add_intercept}{Logical. If \code{TRUE} (default), checks for an existing
-intercept column of 1s in \code{X} and prepends one if missing.}
+\item{add_intercept}{Add an intercept unless one already exists.}
 
-\item{gamma}{Double. Variance ratio parameter (\eqn{\sigma^2_u / \sigma^2_e}).
-Defaults to 0.5.}
+\item{gamma_max}{Upper bound for the random/residual variance ratio.}
+
+\item{tol}{Optimization tolerance on log(1 + gamma).}
+
+\item{max_iter}{Maximum iterations per optimization bracket.}
+
+\item{grid_size}{Number of initial variance-ratio search points.}
 }
 \value{
-A list containing:
-\item{t_stat}{A matrix of dimensions \code{p x M} containing t-statistics for each predictor and outcome.}
-\item{coefficients}{A matrix of dimensions \code{p x M} containing estimated fixed-effect coefficients (\eqn{\beta}).}
+List containing coefficients, standard errors, t-statistics,
+variance estimates, and fitting status for each outcome.
 }
 \description{
-Fits random-intercept linear mixed models across multiple outcome variables
-(columns of Y) simultaneously against a single design matrix X. Highly efficient
-for high-throughput screening (e.g., GWAS, EWAS, transcriptomics).
+Voxel-wise REML random-intercept models
 }
