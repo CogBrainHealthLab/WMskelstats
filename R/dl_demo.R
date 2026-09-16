@@ -17,7 +17,7 @@ dl_demo=function(path=tempdir(), quiet=FALSE){
   if (!dir.exists(out_dir)) {dir.create(out_dir)}
   
   # GitHub repository URL
-  base_url <- "https://raw.githubusercontent.com/CogBrainHealthLab/VertexWiseR/refs/heads/main/inst/demo_data/"
+  base_url <- "https://raw.githubusercontent.com/CogBrainHealthLab/WMskelstats/refs/heads/main/inst/demo_data/"
   
   files_to_download <- c(
     "ds007090_behdata.tsv",
