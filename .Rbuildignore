@@ -1,2 +1,6 @@
+^LICENSE
 ^.*\.Rproj$
 ^\.Rproj\.user$
+^inst/demo_data$
+^docs$
+^src$
