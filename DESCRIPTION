@@ -25,6 +25,9 @@ Depends:
 Imports:
     dti,
     shiny,
+    doParallel,
+    doSNOW,
+    foreach,
     mori,
     mmand,
     graphics,
@@ -34,7 +37,8 @@ Imports:
     Rcpp (>= 1.0.0),
     reticulate,
     RNifti,
-    rpyANTs
+    rpyANTs,
+    stringr
 LinkingTo: 
     Rcpp,
     RcppArmadillo
