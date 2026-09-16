@@ -30,16 +30,12 @@ The function qsi_extract() handles the extraction of a cohort-wide skeleton map 
 
 ```{r eval=FALSE, include=TRUE}
 metrics_skeletons=qsi_extract(
-       #the base openneuro dataset
-       inputdir='../ds007090_raw/', 
-       #user-defined output directory
-       outputdir='../ds007090_dti', 
-       #metrics selected
-       metrics=c('fa','md'),  
-       #the FA threshold of the template mask
-       skeleton_fathreshold = 0.2,
+       inputdir='../ds007090_raw/', #the base openneuro dataset
+       outputdir='../ds007090_dti', #user-defined output directory
+       metrics=c('fa','md'),  #metrics selected
+       skeleton_fathreshold = 0.2, #FA threshold of the template mask
        #Parameters for the dti package, only applicable if metric maps are 
-       #not present inside the inputdir already
+       #not present inside the inputdir already:
        dti_tensor='dtiTensor', #or 'dkiTensor'
        dti_method='linear' 
        dti_sigma=NULL, 
@@ -48,12 +44,10 @@ metrics_skeletons=qsi_extract(
        #MNI152, WMskelstats can reuse the ACPC-to-MNI152 transforms from QSIprep
        #outputs, assuming they are from the same dataset)
        #qsiprep_path='../ds007090_raw/',
-       #number of CPU threads to use (for tensor computation and  coregistration)
-       nthread=4, 
-       #whether to print messaging at all
-       silent=FALSE,
-       #whether to save metric maps in native and MNI space
-       keep_maps = FALSE) 
+       nthread=4, #number of CPU threads to use
+       silent=FALSE, #whether to print messaging at all
+       keep_maps = FALSE  #whether to save .nii metrics maps in native and MNI space
+       ) 
 ```
 
 Here is a snippet of the extraction process when silent=FALSE:
@@ -104,7 +98,7 @@ For the sake of the demo, we already provide two extracted .rds files. They can 
 
 ```{r}
 dl_demo(path=tempdir(), #R's temporary directory 
-        quiet=FALSE) #verbose
+        quiet=TRUE)
 ```
 
 We load the behavioural data to select variables for our models:
