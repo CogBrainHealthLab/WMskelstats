@@ -82,40 +82,39 @@ qsi_extract=function(inputdir,
   skel_list <- setNames(vector("list", length(metrics)),
                           paste0("skel_", metrics))
     
-  #subject list
-  sublist=list.files(path = inputdir, recursive = F)
-  sublist=unique(stringr::str_extract(sublist, "sub-[^/]+"))
-  sublist=sublist[!is.na(sublist)]
-  
+  # Discover subject directories, then keep every session's files separate.
+  subject_dirs <- list.dirs(inputdir, recursive = FALSE, full.names = TRUE)
+  subject_dirs <- subject_dirs[grepl("^sub-", basename(subject_dirs))]
+  sublist <- basename(subject_dirs)
+
+  if (!is.null(qsiprep_path) &&
+      (length(qsiprep_path) != 1L || is.na(qsiprep_path) || !dir.exists(qsiprep_path))) {
+    stop("qsiprep_path must be NULL or one existing directory")
+  }
+
   for (subid in sublist)
   {
-    #get all files for that subject
-    subdirs=list.dirs(path=paste0(inputdir,'/',subid), recursive = FALSE,
-                      full.names = TRUE)
-    subfiles= list.files(path = subdirs, recursive = TRUE, full.names = TRUE)
-    #do it for qsiprep too if path attached
-    if (!is.null(qsiprep_path)){
-      if(length(qsiprep_path) != 1L || !dir.exists(qsiprep_path)) stop("Invalid qsiprep_path")
-      if(qsiprep_path!=inputdir){
-        subdirs_qsiprep=list.dirs(path=paste0(qsiprep_path,'/',subid), recursive = FALSE, full.names = TRUE)
-        subfiles_qsiprep= list.files(path = subdirs_qsiprep, recursive = TRUE, full.names = TRUE)
-      } else { subfiles_qsiprep = subfiles }
-    }
-    
-    if (length(subfiles)==0) {warning(paste0('No files found for ',subid,'. Skipping')); next}
-    
-    #if ses- directories present, compute both ses separately
-    if (length(which(grepl('ses-', basename(subdirs), ignore.case = TRUE)))>0)
+    subject_dir <- file.path(inputdir, subid)
+    session_dirs <- list.dirs(subject_dir, recursive = FALSE, full.names = TRUE)
+    session_dirs <- session_dirs[grepl("^ses-", basename(session_dirs))]
+    if (!length(session_dirs)) session_dirs <- subject_dir
+
+    for (session_dir in session_dirs)
     {
-      subdirs=subdirs[grepl('ses-', basename(subdirs), ignore.case = TRUE)]
-      subses=paste0(subid,'_',basename(subdirs))
-    } else
-    {
-      subses=subid  
-    }
-    
-    for (sub_s in subses)
-    {
+      session_name <- if (identical(session_dir, subject_dir)) "" else basename(session_dir)
+      sub_s <- if (nzchar(session_name)) paste(subid, session_name, sep = "_") else subid
+      subfiles <- list.files(session_dir, recursive = TRUE, full.names = TRUE)
+      if (!length(subfiles)) {
+        warning("No files found for ", sub_s, ". Skipping.")
+        next
+      }
+
+      subfiles_qsiprep <- character()
+      if (!is.null(qsiprep_path)) {
+        prep_dir <- file.path(qsiprep_path, subid)
+        if (nzchar(session_name)) prep_dir <- file.path(prep_dir, session_name)
+        subfiles_qsiprep <- list.files(prep_dir, recursive = TRUE, full.names = TRUE)
+      }
       if(!silent){message("\nProcessing ", sub_s,"...")}
       
       for (m in metrics)
@@ -145,7 +144,8 @@ qsi_extract=function(inputdir,
           #and cleared before next subject
           if(!exists('dtioutput')){
             if(!silent){message("  => Fetching individual DWI data ...")}
-            dtioutput=dtiData_make(sub_s, subfiles, silent)
+            dtioutput=dtiData_make(sub_s, subfiles, silent,
+                                      dwi_dir = file.path(session_dir, "dwi"))
             dtiDataobj=dtioutput[[1]]
             dwivol=dtioutput[[2]] #will be reused later for coreg
           }
@@ -369,58 +369,70 @@ qsi_extract=function(inputdir,
 #' @importFrom dti readDWIdata setmask
 #' @noRd
 
-dtiData_make=function(sub_s, 
-                      subfiles, 
-                      silent=FALSE){
-  
-  #If enough data to compute DTI/DKI map, do it
-  if (length(grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.nii*"),
-                  subfiles, value=TRUE))>0 & 
-      #fall back if .bval missing
-      (length(grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.bval"),
-                  subfiles, value=TRUE))>0 | 
-       length(grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.b_table"),
-                   subfiles, value=TRUE))>0) & 
-      length(grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.bvec"),
-                  subfiles, value=TRUE))>0 &
-      length(grep(
-        paste0("(?=^ses-[^/]+/dwi/)(?=.*", sub_s, "_space-ACPC_desc-brain_mask\\.nii(\\.gz)?)"),
-        subfiles,
-        perl = TRUE,
-        value = TRUE
-      ))>0
-  )
-  {
-    #define DWI volume and associated bvals and bvec
-    bvec <- as.matrix(read.table(grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.bvec"), subfiles, value = TRUE)))
-    #fall back if .bval missing
-    if (length(grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.bval"),
-                    subfiles, value=TRUE))>0) {
-      bval <- scan(grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.bval"), subfiles,value = TRUE), quiet=TRUE)}
-    else if (length(grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.b_table"),
-                         subfiles, value=TRUE))>0) {
-      bval <- as.numeric(unlist(read.table(grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.b_table"), subfiles,value = TRUE))[1]))
-    }
-    
-    dwivol <- grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.nii*"), subfiles, value = TRUE)
-    #create dti package base object
-    dtiDataobj <- dti::readDWIdata(
-      gradient = bvec,
-      bvalue   = bval,
-      dirlist  = dwivol,
-      format   = "NIFTI")
-    #mask out DWI data using the brain mask in output
-    dtiDataobj <- dti::setmask(dtiDataobj, grep(
-      paste0("(?=^ses-[^/]+/dwi/)(?=.*", sub_s, "_space-ACPC_desc-brain_mask\\.nii(\\.gz)?)"),
-      subfiles,
-      perl = TRUE,
-      value = TRUE
-    ))
-    return(list(dtiDataobj, RNifti::readNifti(dwivol)))
-  } else {
-    dtiDataobj=NA
-      return(list(NA,NA))
+# Replacement for the original dtiData_make(); same existing positional arguments.
+# dwi_dir is optional, but qsi_extract supplies the active session's dwi directory.
+dtiData_make <- function(sub_s, subfiles, silent = FALSE, dwi_dir = NULL) {
+  if (!is.null(dwi_dir)) {
+    if (length(dwi_dir) != 1L || is.na(dwi_dir)) stop("Invalid dwi_dir")
+    subfiles <- list.files(dwi_dir, recursive = FALSE, full.names = TRUE)
   }
+  # Exact dwi-directory membership avoids finding gradients in another modality.
+  paths <- gsub("\\", "/", subfiles, fixed = TRUE)
+  files <- subfiles[basename(dirname(paths)) == "dwi"]
+  # Keep exact subject/session identity, but allow acq-*, run-*, dir-* etc.
+  files <- files[startsWith(basename(files), paste0(sub_s, "_"))]
+  files <- unique(files[file.exists(files)])
+  fail <- function(message) {
+    if (!silent) warning(sub_s, ": ", message, call. = FALSE)
+    list(NA, NA)
+  }
+
+  names <- basename(files)
+  dwi <- files[grepl("_space-ACPC_", names) &
+                 grepl("_desc-preproc_dwi\\.nii(\\.gz)?$", names)]
+  if (!length(dwi)) return(fail("No ACPC preprocessed DWI image found in the active dwi directory."))
+  if (length(dwi) > 1L) {
+    stop(sub_s, ": multiple ACPC DWI images found. Select one acquisition/run before extraction:\n",
+         paste(dwi, collapse = "\n"), call. = FALSE)
+  }
+
+  # Derive sidecars from the chosen image, rather than collecting all gradients.
+  stem <- sub("\\.nii(\\.gz)?$", "", dwi)
+  bval_file <- paste0(stem, ".bval")
+  bvec_file <- paste0(stem, ".bvec")
+  btable_file <- paste0(stem, ".b_table")
+  if (!file.exists(bvec_file)) return(fail(paste("Missing matching bvec:", bvec_file)))
+  if (!file.exists(bval_file) && !file.exists(btable_file)) {
+    return(fail(paste("Missing matching bval or b_table for", basename(dwi))))
+  }
+
+  mask_stem <- sub("_desc-preproc_dwi$", "_desc-brain_mask", stem)
+  mask <- c(paste0(mask_stem, ".nii"), paste0(mask_stem, ".nii.gz"))
+  mask <- mask[file.exists(mask)]
+  if (!length(mask)) {
+    # QSIprep may provide one shared ACPC mask without an acquisition/run entity.
+    mask <- files[grepl("_space-ACPC_", names) &
+                    grepl("_desc-brain_mask\\.nii(\\.gz)?$", names)]
+  }
+  if (!length(mask)) return(fail("No matching ACPC brain mask found."))
+  if (length(mask) > 1L) stop(sub_s, ": multiple possible brain masks; cannot choose safely.")
+
+  bvec <- as.matrix(read.table(bvec_file))
+  if (file.exists(bval_file)) {
+    bval <- scan(bval_file, quiet = TRUE)
+  } else {
+    bval <- as.numeric(read.table(btable_file)[[1L]])
+  }
+  if (!silent) {
+    message("  DWI:  ", dwi)
+    message("  bvec: ", bvec_file)
+    message("  bval: ", if (file.exists(bval_file)) bval_file else btable_file)
+  }
+  dtiDataobj <- dti::readDWIdata(
+    gradient = bvec, bvalue = bval, dirlist = dwi, format = "NIFTI"
+  )
+  dtiDataobj <- dti::setmask(dtiDataobj, mask)
+  list(dtiDataobj, RNifti::readNifti(dwi))
 }
 
 #################################################################################
