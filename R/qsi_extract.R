@@ -383,7 +383,12 @@ dtiData_make=function(sub_s,
                    subfiles, value=TRUE))>0) & 
       length(grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.bvec"),
                   subfiles, value=TRUE))>0 &
-      length(grep(paste0("(?=.*/dwi/)(?=.*",sub_s,"_space-ACPC_desc-brain_mask\\.nii(\\.gz)?)"), subfiles, perl = TRUE,value = TRUE))>0
+      length(grep(
+        paste0("(?=^ses-[^/]+/dwi/)(?=.*", sub_s, "_space-ACPC_desc-brain_mask\\.nii(\\.gz)?)"),
+        subfiles,
+        perl = TRUE,
+        value = TRUE
+      ))>0
   )
   {
     #define DWI volume and associated bvals and bvec
@@ -405,7 +410,12 @@ dtiData_make=function(sub_s,
       dirlist  = dwivol,
       format   = "NIFTI")
     #mask out DWI data using the brain mask in output
-    dtiDataobj <- dti::setmask(dtiDataobj, grep(paste0("(?=.*/dwi/)(?=.*",sub_s,"_space-ACPC_desc-brain_mask\\.nii(\\.gz)?)"), subfiles, perl = TRUE, value = TRUE))
+    dtiDataobj <- dti::setmask(dtiDataobj, grep(
+      paste0("(?=^ses-[^/]+/dwi/)(?=.*", sub_s, "_space-ACPC_desc-brain_mask\\.nii(\\.gz)?)"),
+      subfiles,
+      perl = TRUE,
+      value = TRUE
+    ))
     return(list(dtiDataobj, RNifti::readNifti(dwivol)))
   } else {
     dtiDataobj=NA
