@@ -10,9 +10,13 @@
       stop("Native QSI backend is missing. Run tools/build_qsi_native.R in the package source, then reinstall WMskelstats.")
     .qsi_native_state$dll <- dyn.load(normalizePath(dll, mustWork = TRUE), local = TRUE)
   }
-  address <- getNativeSymbolInfo(paste0("_qsiNative_", symbol),
-                                PACKAGE = .qsi_native_state$dll)$address
-  .Call(address, ...)
+  .Call(
+    getNativeSymbolInfo(
+      paste0("_qsiNative_", symbol),
+      PACKAGE = .qsi_native_state$dll
+    )$address,
+    ...
+  )
 }
 
 .qsi_image_input <- function(x, directory, name) {

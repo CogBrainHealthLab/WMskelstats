@@ -75,14 +75,11 @@ BEGIN_RCPP
 END_RCPP
 }
 
-RcppExport SEXP address(/* FIXME */);
-
 static const R_CallMethodDef CallEntries[] = {
     {"_WMskelstats_calc_tfce_cpp", (DL_FUNC) &_WMskelstats_calc_tfce_cpp, 7},
     {"_WMskelstats_lm_multi_t_cpp", (DL_FUNC) &_WMskelstats_lm_multi_t_cpp, 5},
     {"_WMskelstats_fast_rint_reg_multi_y_cpp", (DL_FUNC) &_WMskelstats_fast_rint_reg_multi_y_cpp, 8},
     {"_WMskelstats_cpp_smooth_voxel_matrix", (DL_FUNC) &_WMskelstats_cpp_smooth_voxel_matrix, 3},
-    {"address", (DL_FUNC) &address, -1},
     {NULL, NULL, 0}
 };
 
