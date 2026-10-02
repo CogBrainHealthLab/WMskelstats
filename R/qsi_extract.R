@@ -123,7 +123,7 @@ qsi_extract=function(inputdir,
         #############################
         #create map from DWI file for QSIprep outputs
         #If map not already computed (QSIPREP), compute if applicable
-        metric_map=grepl(paste0(sub_s,"_space-.*_model-.*_param-", m,"_dwimap\\.nii(\\.gz)?$"),subfiles)
+        metric_map=startsWith(basename(subfiles), paste0(sub_s, "_")) & grepl(paste0("_space-[^_]+_model-.*_param-", m,"_dwimap\\.nii(\\.gz)?$"),subfiles)
         if (length(which(metric_map)) == 0)
         {
           if(!exists('dtiDataobj')){if(!silent){message(paste0("  => No preexisting map found, trying to build a dti object..."))}}
@@ -212,8 +212,10 @@ qsi_extract=function(inputdir,
           if(!silent){message("  => Coregistering metrics map to MNI152NLin2009cAsym...")}
           #looking for transformation matrix, either in default path 
           #or in QSIprep path if specified
-          pattern="_from-ACPC_to-MNI152NLin2009cAsym_mode-image_xfm.h5"
-          transform_path=grep(paste0(sub_s, pattern), subfiles, value = TRUE)
+          transform_path <- .qsi_find_transform(inputdir, subid, session_name)
+          if (!length(transform_path) && !is.null(qsiprep_path)) {
+            transform_path <- .qsi_find_transform(qsiprep_path, subid, session_name)
+          }
           #if still not found, skip
           if(length(transform_path)==0)
           { if (!silent){message(paste0("  No valid transformation matrix found for", sub_s, ", ('*_from-ACPC_to-MNI152NLin2009cAsym_mode-image_xfm.h5')."))}
@@ -228,7 +230,7 @@ qsi_extract=function(inputdir,
         } else {
           
           #check if QSIrecon map exists in MNI152
-          metric_map_MNI152=grepl(paste0(sub_s,"_space-MNI152NLin2009cAsym_model-.*_param-", m,"_dwimap\\.nii(\\.gz)?$"),subfiles)
+          metric_map_MNI152=startsWith(basename(subfiles), paste0(sub_s, "_")) & grepl(paste0("_space-MNI152NLin2009cAsym_model-.*_param-", m,"_dwimap\\.nii(\\.gz)?$"),subfiles)
           
           #if only ACPC, coregister
           if(length(which(metric_map_MNI152))==0)
@@ -238,14 +240,8 @@ qsi_extract=function(inputdir,
             if(!silent){message("  => Coregistering metrics map to MNI152NLin2009cAsym...")}
             #looking for transformation matrix, either in default path 
             #or in QSIprep path if specified
-            pattern="_from-ACPC_to-MNI152NLin2009cAsym_mode-image_xfm.h5"
-            if(!is.null(qsiprep_path)){
-              transform_path=grep(paste0(sub_s,pattern), subfiles_qsiprep, value = TRUE)
-            } else {
-              if(!silent) 
-              {message("  ACPC-to-MNI152 transformation matrices are not provided by QSIrecon by default. Rerun the pipeline to include MNI152 outputs, or provide a path to the qsiprep_path argument.")}
-              break
-            }
+            transform_root <- if (is.null(qsiprep_path)) inputdir else qsiprep_path
+            transform_path <- .qsi_find_transform(transform_root, subid, session_name)
             #if not found, skip
             if(length(transform_path)==0)
             {
@@ -400,7 +396,9 @@ dtiData_make <- function(sub_s, subfiles, silent = FALSE, dwi_dir = NULL) {
   stem <- sub("\\.nii(\\.gz)?$", "", dwi)
   bval_file <- paste0(stem, ".bval")
   bvec_file <- paste0(stem, ".bvec")
-  btable_file <- paste0(stem, ".b_table")
+  btable_candidates <- paste0(stem, c(".b_table", ".b_table.txt"))
+  btable_existing <- btable_candidates[file.exists(btable_candidates)]
+  btable_file <- if (length(btable_existing)) btable_existing[1L] else btable_candidates[1L]
   if (!file.exists(bvec_file)) return(fail(paste("Missing matching bvec:", bvec_file)))
   if (!file.exists(bval_file) && !file.exists(btable_file)) {
     return(fail(paste("Missing matching bval or b_table for", basename(dwi))))
@@ -502,4 +500,31 @@ ACPC_to_MNI152=function(mapfile, transform_path, qsiprep_path=NULL,
     qsi_image_write(warped_vol, file.path(mapdir, paste0(sub_s,"_",m,"_map_MNI152.nii.gz")))
   }
   warped_vol
+}
+
+# Look only in this session, then in the shared subject/anat directory.
+# Never use the inverse transform or a transform from a different session.
+.qsi_find_transform <- function(root, subid, session = "") {
+  if (is.null(root)) return(character())
+  suffix <- "_from-ACPC_to-MNI152NLin2009cAsym_mode-image_xfm.h5"
+  subject_dir <- file.path(root, subid)
+  pick <- function(files, prefix, exact = FALSE) {
+    names <- basename(files)
+    keep <- if (exact) names == paste0(prefix, suffix) else
+      startsWith(names, paste0(prefix, "_")) & endsWith(names, suffix)
+    candidates <- unique(files[keep])
+    if (length(candidates) > 1L)
+      stop("Ambiguous ACPC-to-MNI152 transforms for ", prefix, ":\n",
+           paste(candidates, collapse = "\n"), call. = FALSE)
+    candidates
+  }
+  if (nzchar(session)) {
+    files <- list.files(file.path(subject_dir, session), recursive = TRUE,
+                        full.names = TRUE)
+    found <- pick(files, paste(subid, session, sep = "_"))
+    if (length(found)) return(found)
+  }
+  files <- list.files(file.path(subject_dir, "anat"), recursive = TRUE,
+                      full.names = TRUE)
+  pick(files, subid, exact = TRUE)
 }
