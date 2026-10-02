@@ -168,9 +168,9 @@ qsi_extract=function(inputdir,
             if (missing(dti_method)){dti_method=c("linear")}
             dtiTensorobj  <- dti::dtiTensor(dtiDataobj, method=dti_method, 
                                             L=dti_L, sigma=dti_sigma, 
-                                            mc.cores = setCores(nthread,reprt = FALSE))
+                                            mc.cores = nthread)
             Indicesobj <- dti::dtiIndices(dtiTensorobj, 
-                                          mc.cores = setCores(nthread,reprt = FALSE)) 
+                                          mc.cores = nthread) 
           } else if (dti_tensor=='dkiTensor' & !exists('dkiTensorobj')) {
             #DKI
             if(!silent){message(paste0("  => Computing diffusion kurtosis tensor (and diffusion tensor)  using ", dti_tensor, "..."))}
@@ -178,9 +178,9 @@ qsi_extract=function(inputdir,
             if (missing(dti_method)){dti_method=c("CLLS-QP")}
             dkiTensorobj  <- dti::dkiTensor(dtiDataobj, method=dti_method, 
                                             L=dti_L, sigma=dti_sigma, 
-                                            mc.cores = setCores(nthread,reprt = FALSE)) 
+                                            mc.cores = nthread) 
             Indicesobj <- dti::dkiIndices(dkiTensorobj, 
-                                          mc.cores = setCores(nthread,reprt = FALSE))
+                                          mc.cores = nthread)
             
           } else if (dti_tensor!='dtiTensor' & dti_tensor!='dkiTensor') 
           {stop('The dti_tensor argument must either be dtiTensor or dkiTensor')
