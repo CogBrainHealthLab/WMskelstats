@@ -8,7 +8,15 @@
 - Ran the following code successfully. Output files @ `/scratch/junhong.yu/HBN_output`
 
 ```
-dat=qsi_extract(inputdir="/scratch/junhong.yu/HBN",outputdir="/scratch/junhong.yu/HBN_output", metrics=c('fa', 'md'),skeleton_fathreshold=0.2,dti_tensor='dtiTensor', dti_L=1, nthread=16, keep_maps=FALSE,silent=FALSE)
+dat=qsi_extract(inputdir="/scratch/junhong.yu/HBN",
+              outputdir="/scratch/junhong.yu/HBN_output",
+              metrics=c('fa', 'md'),
+              skeleton_fathreshold=0.2,
+              dti_tensor='dtiTensor',
+              dti_L=1,
+              nthread=16,
+              keep_maps=FALSE,
+              silent=FALSE)
 ```
 
 ### To install on NTU HPC (WildFly terminal)
