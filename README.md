@@ -11,7 +11,7 @@
 dat=qsi_extract(inputdir="/scratch/junhong.yu/HBN",outputdir="/scratch/junhong.yu/HBN_output", metrics=c('fa', 'md'),skeleton_fathreshold=0.2,dti_tensor='dtiTensor', dti_L=1, nthread=16, keep_maps=FALSE,silent=FALSE)
 ```
 
-### to install on NTU HPC (WildFly terminal)
+### To install on NTU HPC (WildFly terminal)
 
 load modules. Open an R session with:
 ```
