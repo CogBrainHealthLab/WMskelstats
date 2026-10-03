@@ -2,7 +2,7 @@
 
 ## Development branch
 ### Replaced `rpyANTs` with pre-installed ANTs binaries
-
+- reticulate no longer required.
 - ANTs can be downloaded and installed from https://github.com/ANTsX/ANTs/releases
 - ANTs is already installed on NTU HPC (`module load ANTs/2.5.2`)
 - Ran the following code successfully. Output files @ `/scratch/junhong.yu/HBN_output`
