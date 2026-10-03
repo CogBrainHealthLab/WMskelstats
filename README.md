@@ -1,7 +1,7 @@
 # WMskelstats
 
 ## Development branch
-### `rpyANTs` with pre-installed ANTs binaries
+### Replaced `rpyANTs` with pre-installed ANTs binaries
 
 - ANTs can be downloaded and installed from https://github.com/ANTsX/ANTs/releases
 - ANTs is already installed on NTU HPC (`module load ANTs/2.5.2`)
