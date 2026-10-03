@@ -36,7 +36,7 @@ qsi_extract(
 
 \item{dti_L}{An integer specifying the effective degrees of freedom for the tensor estimation. Default is 1.  Argument ignored for QSIrecon output.}
 
-\item{nthread}{Number of CPU threads for the dti package to use when estimating the tensor and metrics from the data. Argument ignored for QSIrecon output.}
+\item{nthread}{Number of CPU threads for tensor estimation and ITK work units for image resampling.}
 
 \item{keep_maps}{A logical object to determine whether files such as estimated tensor maps and coregistered maps are to be written in the \code{outputdir}. Default is FALSE.}
 
@@ -52,11 +52,7 @@ A list of 2D matrices, each matrix corresponding to one metric from
 Extracts diffusion weighted imaging based metrics across a whole cohort datasets from QSIprep or QSIrecon pipeline outputs, masked into a common skeleton template, and merging them into single RDS files for each metric of interest.
 }
 \details{
-For QSIprep output, the function makes use of tools from the \code{dti} R package to build a diffusion-weighted map and estimate DTI or DKI tensors. This requires bvec, bval and the dwi images to all be present in the subject directory. The map estimated from it is then coregistered to MNI 152 2mm space using the \code{rpyANTs} package and the ACPC-to-MNI152 transforms that QSIprep generates.
-For QSIrecon outputs, maps are already present in MNI 152 space, and the qsi_extract() function will only regrid the MNI152 maps to 2 mm if resolution is higher.
+For QSIprep output, the function makes use of tools from the \code{dti} R package to build a diffusion-weighted map and estimate DTI or DKI tensors. This requires bvec, bval and the dwi images to all be present in the subject directory. The map estimated from it is then coregistered to MNI 152 2mm space using the native ITK C++ backend and the ACPC-to-MNI152 transforms that QSIprep generates.
+For QSIrecon outputs, maps are already present in MNI 152 space, and the qsi_extract() function regrids MNI152 maps whenever their physical grid differs from the skeleton template.
 The FA skeleton is based on FSL's FMRIB58_FA-skeleton_1mm downsampled to 2mm.
-}
-\examples{
-SCMvextract(sdirpath = "subcortexmesh_output_metrics", 
-outputdir=paste0(tempdir(), "\\\\subcortices"), template='fsaverage', measure="surfarea") 
 }
