@@ -40,4 +40,5 @@ remotes::install_github("cogbrainhealthlab/WMskelstats@development")
 - need to compare output data with those generated using `rpyANTs`. I could not get `rpyANTs` to work on NTU HPC. I suppose they should be identical since we are using the pre-installed ANTs binary instead a custom-made ANTs replacement function.
 - previously, input files were not correctly detected when the input dir contains ses-* sub-directories. In this version of `qsi_extract()`, input paths are modified to detect files correctly within ses-* sub-directory, but these paths may not work when there are no ses-* subdirectories.
 - update docs: instructions to install ANTs binaries.
+- add a `comments` object to the output .rds. This will be useful to document the version of qsiprep/qsirecon used.
 
