@@ -20,7 +20,7 @@ dat=qsi_extract(inputdir="/scratch/junhong.yu/HBN",
 ```
 
 ### To install on NTU HPC (WildFly terminal)
-
+I had to run this on the Wildfly terminal because for some reason `qintel_viz` is not connected to the internet.
 load modules. Open an R session with:
 ```
 module load r/4.6.0
