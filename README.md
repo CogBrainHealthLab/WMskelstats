@@ -27,7 +27,7 @@ Load modules and open an R session with:
 ```
 module load r/4.6.0
 module load gnu/gcc-12.3
-ANTs/2.5.2
+module load ANTs/2.5.2
 R
 ```
 Note, any version of R<4.5.0 will not work. 
