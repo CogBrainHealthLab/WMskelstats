@@ -3,6 +3,6 @@
 .RData
 .Ruserdata
 WMskelstats.Rproj
-src/RcppExports.o
-src/WMskelstats.dll
-tools/qsi_native_build/
+src/*.o
+src/*.so
+src/*.dll
