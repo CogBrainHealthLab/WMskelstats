@@ -48,7 +48,7 @@ qsiprep_QC=function(filename="QSIPREP_QC.csv", N_SD_FD=2, N_SD_neighbor=2, absth
     }
   }
   #identify scans that fail QC
-  if(missing(absthresh_FD)) {FD_crit=mean(dat$mean_fd)+(N_SD_FD*sd(dat$mean_FD))} 
+  if(missing(absthresh_FD)) {FD_crit=mean(dat$mean_fd)+(N_SD_FD*sd(dat$mean_fd))} 
   else  {FD_crit=absthresh_FD}
   
   if(missing(absthresh_neighbor)) {neighbor_crit=mean(dat$raw_neighbor_corr)-(N_SD_neighbor*sd(dat$raw_neighbor_corr))}
