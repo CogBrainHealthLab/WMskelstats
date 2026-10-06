@@ -215,8 +215,8 @@ LME_TFCE=function(model,contrast, random, formula, formula_dataset, vox_data, co
 
   
   ##saving list objects
-  returnobj=list(mod$t_stat[colno+1,],vol_to_df(TFCE.orig), TFCE.max,tail)
-  names(returnobj)=c("t_stat","TFCE.orig","TFCE.max","tail")
+  returnobj=list(mod$t_stat[colno+1,],vol_to_df(TFCE.orig), TFCE.max,tail,coords)
+  names(returnobj)=c("t_stat","TFCE.orig","TFCE.max","tail","coords")
   
   return(returnobj)
 }

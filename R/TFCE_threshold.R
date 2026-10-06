@@ -36,7 +36,7 @@ TFCE_threshold=function(TFCEoutput, p=0.05,  k=20)
     #zeroing out all negative voxels
     pos.t_stat.thresholdedP=t_stat.thresholdedP
     pos.t_stat.thresholdedP[pos.t_stat.thresholdedP<0]=0
-    pos.t_stat.thresholdedP.vol=WMskelstats:::df_to_vol(coords = data.matrix(check[,c("x","y","z")]), data=pos.t_stat.thresholdedP)   
+    pos.t_stat.thresholdedP.vol=WMskelstats:::df_to_vol(coords = TFCEoutput$coords), data=pos.t_stat.thresholdedP)   
     pos.clust.results=WMskelstats:::get_clusters(pos.t_stat.thresholdedP.vol,min_size = k)
     if(NROW(pos.clust.results)==0)
     {
@@ -48,7 +48,7 @@ TFCE_threshold=function(TFCEoutput, p=0.05,  k=20)
     #zeroing out all positive voxels
     neg.t_stat.thresholdedP=t_stat.thresholdedP
     neg.t_stat.thresholdedP[neg.t_stat.thresholdedP>0]=0
-    neg.t_stat.thresholdedP.vol=WMskelstats:::df_to_vol(coords = data.matrix(check[,c("x","y","z")]), data=neg.t_stat.thresholdedP)   
+    neg.t_stat.thresholdedP.vol=WMskelstats:::df_to_vol(coords = TFCEoutput$coords), data=neg.t_stat.thresholdedP)   
     neg.clust.results=WMskelstats:::get_clusters(neg.t_stat.thresholdedP.vol,min_size = k)
     if(NROW(neg.clust.results)==0)
     {
