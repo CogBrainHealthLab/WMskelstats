@@ -71,7 +71,7 @@ plot_skel <- function(coords, data, template = rep(NA, length(data))) {
         
         fluidRow(
           column(6, checkboxInput("show_2d", "Show 2D Slice Views", value = TRUE)),
-          column(6, checkboxInput("black_bg", "Black Background", value = FALSE))
+          column(6, checkboxInput("black_bg", "Dark mode", value = FALSE))
         ),
         conditionalPanel(
           condition = "input.show_2d == true",

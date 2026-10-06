@@ -30,6 +30,7 @@ Imports:
     foreach,
     mori,
     mmand,
+    ggplot2,	
     graphics,
     grDevices,
     plotly,

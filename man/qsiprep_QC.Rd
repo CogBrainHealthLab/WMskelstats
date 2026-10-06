@@ -4,14 +4,24 @@
 \alias{qsiprep_QC}
 \title{qsiprep_QC}
 \usage{
-qsiprep_QC(filename = "QSIPREP_QC.csv", N_SD_fd = 2, N_SD_neighbor = 2)
+qsiprep_QC(
+  filename = "QSIPREP_QC.csv",
+  N_SD_FD = 2,
+  N_SD_neighbor = 2,
+  absthresh_FD,
+  absthresh_neighbor
+)
 }
 \arguments{
 \item{filename}{Filename of the .csv file. Set to \code{QSIPREP_QC.csv} by default}
 
-\item{N_SD_fd}{The relative cutoffs in terms of the number of SDs from the mean. Subjects whose \code{mean_fd} > (mean(mean_fd)+N_SD_fd*sd(mean_fd)) will be identified as QC failure cases. Set to \code{2} by default}
+\item{N_SD_FD}{The relative cutoffs for \code{mean_FD} in terms of the number of SDs from the mean. Subjects whose \code{mean_FD} > (mean(mean_FD)+N_SD_FD*sd(mean_FD)) will be identified as QC failure cases. Set to \code{2} by default}
 
-\item{N_SD_neigbour}{The relative cutoffs in terms of the number of SDs from the mean. Subjects whose \code{raw_neighbor_corr} < (mean(raw_neighbor_corr)-N_SD_neighbor*sd(raw_neighbor_corr)) will be identified as QC failure cases. Set to \code{2} by default}
+\item{absthresh_FD}{The absolute cutoffs for \code{mean_FD} . Subjects whose \code{mean_FD} > \code{absthresh_FD} will be identified as QC failure cases. Not specified by default. \code{N_SD_FD} will be ignored if specified}
+
+\item{absthresh_neighbor}{The absolute cutoffs for \code{raw_neighbor_corr} . Subjects whose \code{raw_neighbor_corr} < \code{absthresh_neighbor} will be identified as QC failure cases. Not specified by default. \code{N_SD_neighbor} will be ignored if specified}
+
+\item{N_SD_neigbour}{The relative cutoffs for \code{raw_neighbor_corr} in terms of the number of SDs from the mean. Subjects whose \code{raw_neighbor_corr} < (mean(raw_neighbor_corr)-N_SD_neighbor*sd(raw_neighbor_corr)) will be identified as QC failure cases. Set to \code{2} by default}
 }
 \value{
 outputs a .csv file containing the aslprep QC data and the bash script \code{del.sh} if there are scans that fail the QC
@@ -20,7 +30,7 @@ outputs a .csv file containing the aslprep QC data and the bash script \code{del
 collating all qsiprep QC data into a single .csv file, identifies subjects who fail QC, and if there are QC failures, a bash script (\code{del.sh}) will be generated to delete these subject folders
 }
 \details{
-This function collates all qsiprep QC data into a single .csv file and identifies subjects whose \code{raw_neighbor_corr} and/or \code{mean_fd} violates a preset criterion (i.e., number of SDs from the mean).Since there is a lack of consensus on the absolute cutoffs for quality controlling qsiprep output, a relative criteria was used instead.
+This function collates all qsiprep QC data into a single .csv file and identifies subjects whose \code{raw_neighbor_corr} and/or \code{mean_FD} violates a preset criterion (i.e., number of SDs from the mean).Since there is a lack of consensus on the absolute cutoffs for quality controlling qsiprep output, a relative criteria was used instead.
 }
 \examples{
 \dontrun{
