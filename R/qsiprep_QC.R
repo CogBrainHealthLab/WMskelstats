@@ -73,12 +73,9 @@ qsiprep_QC=function(filename="QSIPREP_QC.csv", N_SD_FD=2, N_SD_neighbor=2, absth
     {
       del.sh=paste0("rm -rf ",dat$subject_id[idx],"/",dat$session_id[idx])    
     }
-  }
-  if(length(del.sh)>0)
-  {
+
     cat(paste0(length(del.sh), " DWI scans failed QC. QC criteria:mean_FD > ",round(FD_crit,2), " and raw_neighbor_corr < ",round(neighbor_crit,2)))
     write.table(del.sh,row.names=F, col.names=F,quote=F, file="del.sh")
-  } else
-  { cat("all DWI scans passed QC")}
+  } else { cat("all DWI scans passed QC")}
   write.table(dat, file=filename, row.names = F, sep=",")
 }
