@@ -286,23 +286,32 @@ plot_skel <- function(coords, data, template = rep(NA, length(data))) {
 # -----------------------------------------------------------------------------
 # Helper Functions
 # -----------------------------------------------------------------------------
-
 get_palette_colors <- function(palette_name, n = 256) {
-  pal_func <- switch(
-    palette_name,
+  pal_func <- switch(palette_name,
+    # Sequential and other existing palettes
     "viridis" = colorRampPalette(c("#440154", "#3B528B", "#21908C", "#5DC863", "#FDE725")),
-    "plasma"  = colorRampPalette(c("#000004", "#6A00A8", "#B12A90", "#E16462", "#FCA636", "#F0F921")),
+    "plasma" = colorRampPalette(c("#000004", "#6A00A8", "#B12A90", "#E16462", "#FCA636", "#F0F921")),
     "inferno" = colorRampPalette(c("#000004", "#420A68", "#932667", "#DD513A", "#FCA50A", "#FCFFA4")),
-    "magma"   = colorRampPalette(c("#000004", "#3B0F70", "#8C2981", "#DE4968", "#FE9F6D", "#FCFDBF")),
+    "magma" = colorRampPalette(c("#000004", "#3B0F70", "#8C2981", "#DE4968", "#FE9F6D", "#FCFDBF")),
     "cividis" = colorRampPalette(c("#002051", "#2C456B", "#576B71", "#89926B", "#C3BC67", "#FBEA55")),
-    "jet"     = colorRampPalette(c("blue", "cyan", "green", "yellow", "red")),
+    "jet" = colorRampPalette(c("blue", "cyan", "green", "yellow", "red")),
     "rainbow" = colorRampPalette(rainbow(7)),
-    "hot"     = colorRampPalette(c("black", "red", "yellow", "white")),
+    "hot" = colorRampPalette(c("black", "red", "yellow", "white")),
+    # Diverging palettes: negative -> zero -> positive
+    "blue_white_red" = colorRampPalette(c("#2166AC", "#67A9CF", "#D1E5F0","#FFFFFF","#FDDBC7", "#EF8A62", "#B2182B")),
+    "coolwarm" = colorRampPalette(c("#3B4CC0", "#8DB0FE","#DDDDDD","#F4987A", "#B40426")),
+    "blue_orange" = colorRampPalette(c("#2166AC", "#67A9CF", "#D1E5F0","#F7F7F7","#FEE0B6", "#F1A340", "#B35806")),
+    "purple_green" = colorRampPalette(c("#40004B", "#762A83", "#9970AB", "#C2A5CF", "#E7D4E8","#F7F7F7","#D9F0D3", "#A6DBA0", "#5AAE61", "#1B7837", "#00441B")),
+    "brown_teal" = colorRampPalette(c("#543005", "#8C510A", "#BF812D", "#DFC27D", "#F6E8C3","#F5F5F5","#C7EAE5", "#80CDC1", "#35978F", "#01665E", "#003C30")),
+    "pink_green" = colorRampPalette(c("#8E0152", "#C51B7D", "#DE77AE", "#F1B6DA", "#FDE0EF","#F7F7F7","#E6F5D0", "#B8E186", "#7FBC41", "#4D9221", "#276419")),
+    "blue_black_red" = colorRampPalette(c("#00BFFF", "#2166AC","#000000","#B2182B", "#FF6347")),
+
+    # Default
     colorRampPalette(c("#440154", "#3B528B", "#21908C", "#5DC863", "#FDE725"))
   )
   pal_func(n)
 }
-
+                       
 make_plotly_colorscale <- function(palette_name) {
   cols <- get_palette_colors(palette_name, n = 256)
   n <- length(cols)
