@@ -95,7 +95,7 @@
 #' @importFrom grDevices colorRampPalette rainbow
 #' @export
 
-plot_lightbox=function(x_slices,
+plot_lightbox2=function(x_slices,
                        y_slices,
                        z_slices,
                        vox_data, 
@@ -109,6 +109,13 @@ plot_lightbox=function(x_slices,
                        nrow=1,
                        na_color="#7F7F7F")
 {
+  ## set symmetrical color limits if necessary
+  color_limits=range(vox_data,na.rm = T)
+  if(color_limits[1]  < 0 && color_limits[2] > 0)
+  {
+    color_limits=c(-abs(max(vox_data)), abs(max(vox_data)))
+  }
+  
   cmap.dat=get_palette_colors(cmap)
   if(dark_mode==T)
   {
@@ -137,7 +144,7 @@ plot_lightbox=function(x_slices,
     plot.obj=ggplot(dat.plot,aes(x=y,y=z,color=color))+
       geom_point(size=pointsize)+
       coord_fixed(ratio = 1)+
-      scale_color_gradientn(name=colorscale_title,colors = cmap.dat,na.value = na_color)+
+      scale_color_gradientn(name=colorscale_title,colors = cmap.dat,na.value = na_color,limits=color_limits)+
       facet_wrap(~x,nrow = nrow)+
       theme_void()+
       theme(strip.text = element_text(margin = margin(b = strip_margin),face ="bold", colour = title_color,size = strip_fontsize),
@@ -162,7 +169,7 @@ plot_lightbox=function(x_slices,
     plot.obj=ggplot(dat.plot,aes(x=x,y=z,color=color))+
       geom_point(size=pointsize)+
       coord_fixed(ratio = 1)+
-      scale_color_gradientn(name=colorscale_title,colors = cmap.dat,na.value = na_color)+
+      scale_color_gradientn(name=colorscale_title,colors = cmap.dat,na.value = na_color,limits =color_limits)+
       facet_wrap(~y,nrow = nrow)+
       theme_void()+
       theme(strip.text = element_text(margin = margin(b = strip_margin),face ="bold", colour = title_color,size = strip_fontsize),
@@ -187,7 +194,7 @@ plot_lightbox=function(x_slices,
     plot.obj=ggplot(dat.plot,aes(x=x,y=y,color=color))+
       geom_point(size=pointsize)+
       coord_fixed(ratio = 1)+
-      scale_color_gradientn(name=colorscale_title,colors = cmap.dat,na.value = na_color)+
+      scale_color_gradientn(name=colorscale_title,colors = cmap.dat,na.value = na_color,limits =color_limits)+
       facet_wrap(~z,nrow = nrow)+
       theme_void()+
       theme(strip.text = element_text(margin = margin(b = strip_margin),face ="bold", colour = title_color,size = strip_fontsize),

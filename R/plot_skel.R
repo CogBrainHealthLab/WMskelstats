@@ -36,7 +36,14 @@ plot_skel <- function(coords, data, template = rep(NA, length(data))) {
     val_range <- c(0, 1)
   } else {
     val_range <- range(all_vals)
+    
     if (val_range[1] == val_range[2]) { val_range <- c(val_range[1] - 0.5, val_range[2] + 0.5) }
+    color_limits <- val_range
+    if (val_range[1]  < 0 && val_range[2] > 0) 
+    {
+      max_abs <- max(abs(color_limits))
+      color_limits <- c(-max_abs, max_abs)
+    }
   }
   
   val_vector <- df$val[!is.na(df$val)]
@@ -65,7 +72,8 @@ plot_skel <- function(coords, data, template = rep(NA, length(data))) {
         sliderInput("upper_thresh_val", "Upper threshold:", min = round(thresh_min, 2), max = round(thresh_max, 2), value = round(thresh_max, 2), step = round(thresh_step, 2)),
         
         h4("Appearance Controls"),
-        selectInput("colorscale", "Color Palette:", choices = c("viridis", "plasma", "inferno", "magma", "cividis", "jet", "rainbow", "hot"), selected = "viridis"),
+        selectInput("colorscale", "Color Palette:", choices = c("viridis", "plasma", "inferno", "magma", "cividis", "jet", "rainbow", "hot",
+                                                                "blue_white_red","coolwarm","blue_orange","purple_green","brown_teal","pink_green","blue_black_red"), selected = "viridis"),
         sliderInput("pt_size", "Point Size:", min = 1, max = 10, value = 3, step = 0.5),
         sliderInput("na_opacity", "Template Opacity:", min = 0, max = 1, value = 0.5, step = 0.1),
         
@@ -160,21 +168,21 @@ plot_skel <- function(coords, data, template = rep(NA, length(data))) {
       render_slice_2d(sagittal_valid(), sagittal_na(), sagittal_grey(), "Y", "Z",
                       y_range, z_range, "Y (Posterior - Anterior)", "Z (Inferior - Superior)",
                       paste("Sagittal View (X =", input$x_slider, ")"),
-                      input$colorscale, val_range, input$pt_size, input$na_opacity, black_bg = input$black_bg)
+                      input$colorscale, color_limits, input$pt_size, input$na_opacity, black_bg = input$black_bg)
     }
     
     draw_coronal <- function() {
       render_slice_2d(coronal_valid(), coronal_na(), coronal_grey(), "X", "Z",
                       x_range, z_range, "X (Left - Right)", "Z (Inferior - Superior)",
                       paste("Coronal View (Y =", input$y_slider, ")"),
-                      input$colorscale, val_range, input$pt_size, input$na_opacity, black_bg = input$black_bg)
+                      input$colorscale, color_limits, input$pt_size, input$na_opacity, black_bg = input$black_bg)
     }
     
     draw_axial <- function() {
       render_slice_2d(axial_valid(), axial_na(), axial_grey(), "X", "Y",
                       x_range, y_range, "X (Left - Right)", "Y (Posterior - Anterior)",
                       paste("Axial View (Z =", input$z_slider, ")"),
-                      input$colorscale, val_range, input$pt_size, input$na_opacity, black_bg = input$black_bg)
+                      input$colorscale, color_limits, input$pt_size, input$na_opacity, black_bg = input$black_bg)
     }
     
     output$plot_3d <- renderPlotly({
@@ -217,8 +225,8 @@ plot_skel <- function(coords, data, template = rep(NA, length(data))) {
                          size = max(1, input$pt_size * 0.6),
                          color = d_na$tmpl,
                          colorscale = make_plotly_colorscale(input$colorscale),
-                         cmin = val_range[1],
-                         cmax = val_range[2],
+                         cmin = color_limits[1],
+                         cmax = color_limits[2],
                          opacity = input$na_opacity,
                          showscale = show_cb_na,
                          colorbar = if (show_cb_na) cb_style else NULL)
@@ -232,8 +240,8 @@ plot_skel <- function(coords, data, template = rep(NA, length(data))) {
                          opacity = 0.85,
                          color = d_valid$val,
                          colorscale = make_plotly_colorscale(input$colorscale),
-                         cmin = val_range[1],
-                         cmax = val_range[2],
+                         cmin = color_limits[1],
+                         cmax = color_limits[2],
                          showscale = show_cb_valid,
                          colorbar = if (show_cb_valid) cb_style else NULL)
         )
@@ -267,7 +275,7 @@ plot_skel <- function(coords, data, template = rep(NA, length(data))) {
         draw_axial()
         
         cols <- get_palette_colors(input$colorscale, 256)
-        x_vals <- seq(val_range[1], val_range[2], length.out = 256)
+        x_vals <- seq(color_limits[1], color_limits[2], length.out = 256)
         
         par(mar = c(3.5, 12, 1.5, 12))
         image(x = x_vals, y = c(0, 1), z = matrix(rep(x_vals, 2), nrow = 256, ncol = 2), col = cols, axes = FALSE, xlab = "", ylab = "")
