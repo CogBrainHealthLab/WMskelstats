@@ -80,7 +80,7 @@ TFCE_threshold=function(TFCEoutput, p=0.05,  k=20)
     neg.mask[neg.mask<0]=1
   }
   
-  names(clust.results)=c("Positive contrast", "Negative contrasts")
+  names(clust.results)=c("Positive contrast", "Negative contrast")
   t_stat.thresholded.return[t_stat.thresholded.return==0]=NA
   returnobj=list(clust.results,TFCEoutput$t_stat,t_stat.thresholded.return,pos.mask,neg.mask)
   names(returnobj)=c("cluster_level_results",
