@@ -95,7 +95,7 @@
 #' @importFrom grDevices colorRampPalette rainbow
 #' @export
 
-plot_lightbox2=function(x_slices,
+plot_lightbox=function(x_slices,
                        y_slices,
                        z_slices,
                        vox_data, 
@@ -113,7 +113,7 @@ plot_lightbox2=function(x_slices,
   color_limits=range(vox_data,na.rm = T)
   if(color_limits[1]  < 0 && color_limits[2] > 0)
   {
-    color_limits=c(-abs(max(vox_data)), abs(max(vox_data)))
+    color_limits=c(-max(abs(color_limits)), max(abs(color_limits)))
   }
   
   cmap.dat=get_palette_colors(cmap)
