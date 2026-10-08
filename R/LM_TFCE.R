@@ -185,8 +185,8 @@ LM_TFCE=function(model,contrast, formula, formula_dataset, vox_data, coords, smo
 
   
   ##saving list objects
-  returnobj=list(mod[colno + 1, ],vol_to_df(TFCE.orig), TFCE.max,tail)
-  names(returnobj)=c("t_stat","TFCE.orig","TFCE.max","tail")
+  returnobj=list(mod[colno + 1, ],vol_to_df(TFCE.orig), TFCE.max,tail,coords)
+  names(returnobj)=c("t_stat","TFCE.orig","TFCE.max","tail","coords")
   
   return(returnobj)
 }

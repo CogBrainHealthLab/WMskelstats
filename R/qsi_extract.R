@@ -1,8 +1,8 @@
 #' @title QSI diffusion-weighted imaging metrics extractor
 #'
 #' @description Extracts diffusion weighted imaging based metrics across a whole cohort datasets from QSIprep or QSIrecon pipeline outputs, masked into a common skeleton template, and merging them into single RDS files for each metric of interest.
-#' @details For QSIprep output, the function makes use of tools from the `dti` R package to build a diffusion-weighted map and estimate DTI or DKI tensors. This requires bvec, bval and the dwi images to all be present in the subject directory. The map estimated from it is then coregistered to MNI 152 2mm space using the `rpyANTs` package and the ACPC-to-MNI152 transforms that QSIprep generates. 
-#' For QSIrecon outputs, maps are already present in MNI 152 space, and the qsi_extract() function will only regrid the MNI152 maps to 2 mm if resolution is higher. 
+#' @details For QSIprep output, the function makes use of tools from the `dti` R package to build a diffusion-weighted map and estimate DTI or DKI tensors. This requires bvec, bval and the dwi images to all be present in the subject directory. The map estimated from it is then coregistered to MNI 152 2mm space using the native ITK C++ backend and the ACPC-to-MNI152 transforms that QSIprep generates. 
+#' For QSIrecon outputs, maps are already present in MNI 152 space, and the qsi_extract() function regrids MNI152 maps whenever their physical grid differs from the skeleton template. 
 #' The FA skeleton is based on FSL's FMRIB58_FA-skeleton_1mm downsampled to 2mm.
 #' @param inputdir A string object containing the path to the QSIprep or QSIrecon output dataset. For QSIrecon, specify "derivatives/qsirecon-*/" instead of the parent directory, as some files have identical suffixes and cannot be disentangled across reconstructions.
 #' @param outputdir A string object containing the path of the directory where the final cohort-wise RDS will be stored for each metric (as well as metrics maps if `keep_maps` is set as TRUE). Default is 'cohort_skeletons' in the R temporary directory (tempdir()).
@@ -12,7 +12,7 @@
 #'@param dti_method A string object containing the method to be used for tensor-based estimations. If `dti_tensor` is 'dtiTensor', options include "nonlinear", "linear" (default), "quasi-likelihood"; if `dti_tensor` is 'dkiTensor', options include "CLLS-QP" (default), "CLLS-H", "ULLS", "QL", "NLR". Argument ignored for QSIrecon output.
 #'@param dti_sigma An integer specifying the sigma value (scale parameter of the signal's distribution) to be used as part of the tensor estimation. Default is NULL. Argument ignored for QSIrecon output. 
 #'@param dti_L An integer specifying the effective degrees of freedom for the tensor estimation. Default is 1.  Argument ignored for QSIrecon output.
-#'@param nthread Number of CPU threads for the dti package to use when estimating the tensor and metrics from the data. Argument ignored for QSIrecon output.
+#'@param nthread Number of CPU threads for tensor estimation and ITK work units for image resampling.
 #'@param keep_maps A logical object to determine whether files such as estimated tensor maps and coregistered maps are to be written in the `outputdir`. Default is FALSE.
 #'@param qsiprep_path A string containing the path to the QSIprep output (Optional). Ignored if inputdir and qsiprep_path are the same. Its purpose is for QSIrecon processing to retrieve ACPC-to-MNI152 transformation matrices if MNI152 coregistration was not done by QSIrecon. The QSIprep folder must have the same subjects and sessions as the the QSIrecon output.
 #'@param silent A logical object to determine whether messages will be silenced. Default is FALSE.
@@ -20,10 +20,7 @@
 #' @returns A list of 2D matrices, each matrix corresponding to one metric from 
 #' `metrics`. Each element (skel_matrices$fa, skel_matrices$md, skel_matrices$ga, ...) is its own separate matrix: rows = subjects (and sessions), columns = voxels. Additionally, the list contains the coordinates of the skeleton voxels (skel_coords matrix), the skeleton template they are based on, and the FA threshold selected. 
 #' 
-#' @examples SCMvextract(sdirpath = "subcortexmesh_output_metrics", 
-#' outputdir=paste0(tempdir(), "\\subcortices"), template='fsaverage', measure="surfarea") 
 #' @importFrom dti readDWIdata dtiTensor dkiTensor dtiIndices dkiIndices setmask
-#' @importFrom rpyANTs load_ants ants_apply_transforms
 #' @importFrom RNifti asNifti readNifti writeNifti pixdim
 #' @export 
 
@@ -51,11 +48,14 @@ qsi_extract=function(inputdir,
   #Output directory
   if (missing("outputdir")) {
     warning(paste0('No outputdir argument was given. The matrix objects will be saved in a directory named "cohort_skeletons" inside the R temporary directory (tempdir()).\n'))
-    outputdir=paste0(tempdir(),'\\cohort_skeletons')
+    outputdir=file.path(tempdir(), 'cohort_skeletons')
   } else {
-    dir.create(paste0(outputdir), showWarnings=FALSE)
+    dir.create(outputdir, showWarnings=FALSE, recursive=TRUE)
   }
   
+  dir.create(outputdir, showWarnings=FALSE, recursive=TRUE)
+  if (!dir.exists(outputdir)) stop("Cannot create outputdir")
+
   #Preload skeleton template
   template='FMRIB58_FA-skeleton_2mm'
   skeleton_template=RNifti::readNifti(paste0(system.file('extdata',package='WMskelstats'),'/templates/', template))
@@ -64,11 +64,10 @@ qsi_extract=function(inputdir,
                                   skeleton_fathreshold=skeleton_fathreshold)
   #reorder coordinates for later use (will also be reordered for subject data)
   skel_coords=skeleton_mask[[2]] 
-  skeleton_mask[[2]]=skel_coords[order(skel_coords[,'x'], skel_coords[,'y'], skel_coords[,'z']), ] 
+  skel_coords=skel_coords[order(skel_coords[,'x'], skel_coords[,'y'], skel_coords[,'z']), , drop=FALSE]
+  skeleton_mask[[2]]=skel_coords 
   
-  #Preoading ants 
-  if(!silent){message(paste0("Preloading ANTs..."))}
-  ants <- rpyANTs::load_ants()
+  #The native ITK DLL is loaded lazily by qsi_apply_transforms().
   
   #save metadata including template, threshold, skeleton mask coordinates in a list to be appended for later rebuild
   metadata=list(skel_coords,template, skeleton_fathreshold)
@@ -83,39 +82,39 @@ qsi_extract=function(inputdir,
   skel_list <- setNames(vector("list", length(metrics)),
                           paste0("skel_", metrics))
     
-  #subject list
-  sublist=list.files(path = inputdir, recursive = F)
-  sublist=unique(stringr::str_extract(sublist, "sub-[^/]+"))
-  sublist=sublist[!is.na(sublist)]
-  
+  # Discover subject directories, then keep every session's files separate.
+  subject_dirs <- list.dirs(inputdir, recursive = FALSE, full.names = TRUE)
+  subject_dirs <- subject_dirs[grepl("^sub-", basename(subject_dirs))]
+  sublist <- basename(subject_dirs)
+
+  if (!is.null(qsiprep_path) &&
+      (length(qsiprep_path) != 1L || is.na(qsiprep_path) || !dir.exists(qsiprep_path))) {
+    stop("qsiprep_path must be NULL or one existing directory")
+  }
+
   for (subid in sublist)
   {
-    #get all files for that subject
-    subdirs=list.dirs(path=paste0(inputdir,'/',subid), recursive = FALSE,
-                      full.names = TRUE)
-    subfiles= list.files(path = subdirs, recursive = TRUE, full.names = TRUE)
-    #do it for qsiprep too if path attached
-    if (!missing(qsiprep_path)){
-      if(qsiprep_path!=inputdir){
-        subdirs_qsiprep=list.dirs(path=paste0(qsiprep_path,'/',subid), recursive = FALSE, full.names = TRUE)
-        subfiles_qsiprep= list.files(path = qsiprep_path, recursive = TRUE, full.names = TRUE)
+    subject_dir <- file.path(inputdir, subid)
+    session_dirs <- list.dirs(subject_dir, recursive = FALSE, full.names = TRUE)
+    session_dirs <- session_dirs[grepl("^ses-", basename(session_dirs))]
+    if (!length(session_dirs)) session_dirs <- subject_dir
+
+    for (session_dir in session_dirs)
+    {
+      session_name <- if (identical(session_dir, subject_dir)) "" else basename(session_dir)
+      sub_s <- if (nzchar(session_name)) paste(subid, session_name, sep = "_") else subid
+      subfiles <- list.files(session_dir, recursive = TRUE, full.names = TRUE)
+      if (!length(subfiles)) {
+        warning("No files found for ", sub_s, ". Skipping.")
+        next
       }
-    }
-    
-    if (length(subfiles)==0) {warning(paste0('No files found for ',subid,'. Skipping')); next}
-    
-    #if ses- directories present, compute both ses separately
-    if (length(which(grepl('ses-', basename(subdirs), ignore.case = TRUE)))>0)
-    {
-      subdirs=subdirs[grepl('ses-', basename(subdirs), ignore.case = TRUE)]
-      subses=paste0(subid,'_',basename(subdirs))
-    } else
-    {
-      subses=subid  
-    }
-    
-    for (sub_s in subses)
-    {
+
+      subfiles_qsiprep <- character()
+      if (!is.null(qsiprep_path)) {
+        prep_dir <- file.path(qsiprep_path, subid)
+        if (nzchar(session_name)) prep_dir <- file.path(prep_dir, session_name)
+        subfiles_qsiprep <- list.files(prep_dir, recursive = TRUE, full.names = TRUE)
+      }
       if(!silent){message("\nProcessing ", sub_s,"...")}
       
       for (m in metrics)
@@ -124,7 +123,7 @@ qsi_extract=function(inputdir,
         #############################
         #create map from DWI file for QSIprep outputs
         #If map not already computed (QSIPREP), compute if applicable
-        metric_map=grepl(paste0(sub_s,"_space-.*_model-.*_param-", m,"_dwimap\\.nii(\\.gz)?$"),subfiles)
+        metric_map=startsWith(basename(subfiles), paste0(sub_s, "_")) & grepl(paste0("_space-[^_]+_model-.*_param-", m,"_dwimap\\.nii(\\.gz)?$"),subfiles)
         if (length(which(metric_map)) == 0)
         {
           if(!exists('dtiDataobj')){if(!silent){message(paste0("  => No preexisting map found, trying to build a dti object..."))}}
@@ -145,7 +144,8 @@ qsi_extract=function(inputdir,
           #and cleared before next subject
           if(!exists('dtioutput')){
             if(!silent){message("  => Fetching individual DWI data ...")}
-            dtioutput=dtiData_make(sub_s, subfiles, silent)
+            dtioutput=dtiData_make(sub_s, subfiles, silent,
+                                      dwi_dir = file.path(session_dir, "dwi"))
             dtiDataobj=dtioutput[[1]]
             dwivol=dtioutput[[2]] #will be reused later for coreg
           }
@@ -168,9 +168,9 @@ qsi_extract=function(inputdir,
             if (missing(dti_method)){dti_method=c("linear")}
             dtiTensorobj  <- dti::dtiTensor(dtiDataobj, method=dti_method, 
                                             L=dti_L, sigma=dti_sigma, 
-                                            mc.cores = setCores(nthread,reprt = FALSE))
+                                            mc.cores = nthread)
             Indicesobj <- dti::dtiIndices(dtiTensorobj, 
-                                          mc.cores = setCores(nthread,reprt = FALSE)) 
+                                          mc.cores = nthread) 
           } else if (dti_tensor=='dkiTensor' & !exists('dkiTensorobj')) {
             #DKI
             if(!silent){message(paste0("  => Computing diffusion kurtosis tensor (and diffusion tensor)  using ", dti_tensor, "..."))}
@@ -178,9 +178,9 @@ qsi_extract=function(inputdir,
             if (missing(dti_method)){dti_method=c("CLLS-QP")}
             dkiTensorobj  <- dti::dkiTensor(dtiDataobj, method=dti_method, 
                                             L=dti_L, sigma=dti_sigma, 
-                                            mc.cores = setCores(nthread,reprt = FALSE)) 
+                                            mc.cores = nthread) 
             Indicesobj <- dti::dkiIndices(dkiTensorobj, 
-                                          mc.cores = setCores(nthread,reprt = FALSE))
+                                          mc.cores = nthread)
             
           } else if (dti_tensor!='dtiTensor' & dti_tensor!='dkiTensor') 
           {stop('The dti_tensor argument must either be dtiTensor or dkiTensor')
@@ -188,7 +188,7 @@ qsi_extract=function(inputdir,
             if(!silent){message(paste0("  => Reusing previously computed tensor..."))}
           }
           
-          if ((! m %in% slotNames(Indicesobj)) & silent==FALSE)
+          if (! m %in% slotNames(Indicesobj))
           {warning(paste0('  => ', m,' did not get outputted in the Indices. It may be an issue with the dti package.
                             Skipping')); next}  
           
@@ -202,7 +202,7 @@ qsi_extract=function(inputdir,
             mapdir=paste0(outputdir,'/',m,'_maps')
             dir.create(mapdir, showWarnings=FALSE)
             if(!silent){message(paste0("  => Writing metrics map to ",mapdir))}
-            mapfile=paste0(mapdir,"\\",sub_s,"_",m,"_map.nii.gz")
+            mapfile=file.path(mapdir, paste0(sub_s,"_",m,"_map.nii.gz"))
             RNifti::writeNifti(niivol, mapfile)
           } 
           mapfile=niivol
@@ -212,8 +212,10 @@ qsi_extract=function(inputdir,
           if(!silent){message("  => Coregistering metrics map to MNI152NLin2009cAsym...")}
           #looking for transformation matrix, either in default path 
           #or in QSIprep path if specified
-          pattern="_from-ACPC_to-MNI152NLin2009cAsym_mode-image_xfm.h5"
-          transform_path=grep(paste0(sub_s, pattern), subfiles, value = TRUE)
+          transform_path <- .qsi_find_transform(inputdir, subid, session_name)
+          if (!length(transform_path) && !is.null(qsiprep_path)) {
+            transform_path <- .qsi_find_transform(qsiprep_path, subid, session_name)
+          }
           #if still not found, skip
           if(length(transform_path)==0)
           { if (!silent){message(paste0("  No valid transformation matrix found for", sub_s, ", ('*_from-ACPC_to-MNI152NLin2009cAsym_mode-image_xfm.h5')."))}
@@ -221,12 +223,14 @@ qsi_extract=function(inputdir,
           }
           
           #coregister with the transform_path found
-          finalmap=ACPC_to_MNI152(mapfile, transform_path, keep_maps=keep_maps)
+          finalmap=ACPC_to_MNI152(mapfile, transform_path, keep_maps=keep_maps,
+                                   fixed=skeleton_template, outputdir=outputdir,
+                                   m=m, sub_s=sub_s, nthread=nthread)
         
         } else {
           
           #check if QSIrecon map exists in MNI152
-          metric_map_MNI152=grepl(paste0(sub_s,"_space-MNI152NLin2009cAsym_model-.*_param-", m,"_dwimap\\.nii(\\.gz)?$"),subfiles)
+          metric_map_MNI152=startsWith(basename(subfiles), paste0(sub_s, "_")) & grepl(paste0("_space-MNI152NLin2009cAsym_model-.*_param-", m,"_dwimap\\.nii(\\.gz)?$"),subfiles)
           
           #if only ACPC, coregister
           if(length(which(metric_map_MNI152))==0)
@@ -236,14 +240,8 @@ qsi_extract=function(inputdir,
             if(!silent){message("  => Coregistering metrics map to MNI152NLin2009cAsym...")}
             #looking for transformation matrix, either in default path 
             #or in QSIprep path if specified
-            pattern="_from-ACPC_to-MNI152NLin2009cAsym_mode-image_xfm.h5"
-            if(!missing(qsiprep_path)){
-              transform_path=grep(paste0(sub_s,pattern), subfiles_qsiprep, value = TRUE)
-            } else {
-              if(!silent) 
-              {message("  ACPC-to-MNI152 transformation matrices are not provided by QSIrecon by default. Rerun the pipeline to include MNI152 outputs, or provide a path to the qsiprep_path argument.")}
-              break
-            }
+            transform_root <- if (is.null(qsiprep_path)) inputdir else qsiprep_path
+            transform_path <- .qsi_find_transform(transform_root, subid, session_name)
             #if not found, skip
             if(length(transform_path)==0)
             {
@@ -253,8 +251,9 @@ qsi_extract=function(inputdir,
             }
               
             #coregister with the transform_path found
-            finalmap=ACPC_to_MNI152(subfiles[which(metric_map==TRUE)], transform_path,
-                                    keep_maps=keep_maps)
+            finalmap=ACPC_to_MNI152(subfiles[metric_map & grepl("_space-ACPC_", subfiles)], transform_path,
+                                    keep_maps=keep_maps, fixed=skeleton_template,
+                                    outputdir=outputdir, m=m, sub_s=sub_s, nthread=nthread)
             
           } else {
             ####################################
@@ -263,36 +262,38 @@ qsi_extract=function(inputdir,
             if(!silent){message("  => Using preexisting map:");
                         message(paste0("    ", basename(subfiles[which(metric_map_MNI152==TRUE)])))}
             mapfile_coreg=subfiles[which(metric_map_MNI152==TRUE)]
+            if (length(mapfile_coreg) != 1L) stop("Multiple MNI maps found for ", sub_s, " / ", m)
             orig_vol <- RNifti::readNifti(mapfile_coreg)
             
             
-            #downsample the existing MNI152 map to 2mm, if higher resolution
-            if (any(RNifti::pixdim(orig_vol) < 2)) {
-              if(!silent){message("  => Downsampling metrics map to 2 mm...")}
-                resampled_vol <- rpyANTs::ants_apply_transforms(
-                fixed = skeleton_template, #same grid as MNI 152 so no dl needed
+            #Resample whenever the complete physical grid differs, including shifted 2mm grids
+            if (!.qsi_same_grid(orig_vol, skeleton_template)) {
+              if(!silent){message("  => Resampling metrics map to the skeleton grid...")}
+                resampled_vol <- qsi_apply_transforms(
+                fixed = skeleton_template, #exact target grid
                 moving = orig_vol,
                 interpolator = "linear",
-                transformlist = list()   #no transform needed as same grid
+                transformlist = list(),  #identity transform in physical coordinates
+                nthread = nthread
               )
               
               #save to dedicated folder if needed
               if(keep_maps){
-                mapdirmni152=paste0(outputdir,'\\',m,'_maps_MNI152')
+                mapdirmni152=file.path(outputdir, paste0(m,'_maps_MNI152'))
                 dir.create(mapdirmni152, showWarnings=FALSE)
-                mapfile_coreg=paste0(mapdirmni152,"\\",sub_s,"_",m,"_map_MNI152.nii.gz")
-                finalmap=ants$image_write(resampled_vol,  paste0(mapdirmni152,"\\",sub_s,"_", m,"_map_MNI152.nii.gz"))
+                mapfile_coreg=file.path(mapdirmni152,paste0(sub_s,"_",m,"_map_MNI152.nii.gz"))
+                qsi_image_write(resampled_vol,  file.path(mapdirmni152,paste0(sub_s,"_",m,"_map_MNI152.nii.gz")))
               }
               finalmap=resampled_vol #either way
     
             } else {
-              #If already 2 mm, use file directly
+              #If already on the same physical grid, use file directly
               #save to dedicated folder if needed
               if(keep_maps){
-                mapdirmni152=paste0(outputdir,'\\',m,'_maps_MNI152')
+                mapdirmni152=file.path(outputdir, paste0(m,'_maps_MNI152'))
                 dir.create(mapdirmni152, showWarnings=FALSE)
                 if(!silent){message(paste0("  => Copying map to ", mapdirmni152))}
-                RNifti::writeNifti(orig_vol, paste0(mapdirmni152,"\\",sub_s,"_", m,"_map_MNI152.nii.gz"))
+                RNifti::writeNifti(orig_vol, file.path(mapdirmni152,paste0(sub_s,"_",m,"_map_MNI152.nii.gz")))
               }
               finalmap=orig_vol
               
@@ -304,7 +305,8 @@ qsi_extract=function(inputdir,
         if(!silent){message("  => Extracting values using the FMRIB58 FA 2mm template skeleton...")}
         #Extract skeleton of the map for each metric separately
         #safeguard
-        metrics_array=finalmap[]
+        if (!.qsi_same_grid(finalmap, skeleton_template)) stop("Final map and skeleton have different physical grids")
+        metrics_array=as.array(finalmap)
         if(!identical(dim(metrics_array), dim(skeleton_mask[[1]]))){
         stop("The FA skeleton template does not share the subject's map dimensions. The downsampling to 2mm may have failed.")}
         #Get subject values in the template skeleton mask
@@ -363,48 +365,72 @@ qsi_extract=function(inputdir,
 #' @importFrom dti readDWIdata setmask
 #' @noRd
 
-dtiData_make=function(sub_s, 
-                      subfiles, 
-                      silent=FALSE){
-  
-  #If enough data to compute DTI/DKI map, do it
-  if (length(grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.nii*"),
-                  subfiles, value=TRUE))>0 & 
-      #fall back if .bval missing
-      (length(grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.bval"),
-                  subfiles, value=TRUE))>0 | 
-       length(grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.b_table"),
-                   subfiles, value=TRUE))>0) & 
-      length(grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.bvec"),
-                  subfiles, value=TRUE))>0 &
-      length(grep(paste0("(?=.*/dwi/)(?=.*",sub_s,"_space-ACPC_desc-brain_mask\\.nii(\\.gz)?)"), subfiles, perl = TRUE,value = TRUE))>0
-  )
-  {
-    #define DWI volume and associated bvals and bvec
-    bvec <- as.matrix(read.table(grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.bvec"), subfiles, value = TRUE)))
-    #fall back if .bval missing
-    if (length(grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.bval"),
-                    subfiles, value=TRUE))>0) {
-      bval <- scan(grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.bval"), subfiles,value = TRUE), quiet=TRUE)}
-    else if (length(grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.b_table"),
-                         subfiles, value=TRUE))>0) {
-      bval <- as.numeric(unlist(read.table(grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.b_table"), subfiles,value = TRUE))[1]))
-    }
-    
-    dwivol <- grep(paste0(sub_s,"_space-ACPC_desc-preproc_dwi.nii*"), subfiles, value = TRUE)
-    #create dti package base object
-    dtiDataobj <- dti::readDWIdata(
-      gradient = bvec,
-      bvalue   = bval,
-      dirlist  = dwivol,
-      format   = "NIFTI")
-    #mask out DWI data using the brain mask in output
-    dtiDataobj <- dti::setmask(dtiDataobj, grep(paste0("(?=.*/dwi/)(?=.*",sub_s,"_space-ACPC_desc-brain_mask\\.nii(\\.gz)?)"), subfiles, perl = TRUE, value = TRUE))
-    return(list(dtiDataobj, RNifti::readNifti(dwivol)))
-  } else {
-    dtiDataobj=NA
-      return(list(NA,NA))
+# Replacement for the original dtiData_make(); same existing positional arguments.
+# dwi_dir is optional, but qsi_extract supplies the active session's dwi directory.
+dtiData_make <- function(sub_s, subfiles, silent = FALSE, dwi_dir = NULL) {
+  if (!is.null(dwi_dir)) {
+    if (length(dwi_dir) != 1L || is.na(dwi_dir)) stop("Invalid dwi_dir")
+    subfiles <- list.files(dwi_dir, recursive = FALSE, full.names = TRUE)
   }
+  # Exact dwi-directory membership avoids finding gradients in another modality.
+  paths <- gsub("\\", "/", subfiles, fixed = TRUE)
+  files <- subfiles[basename(dirname(paths)) == "dwi"]
+  # Keep exact subject/session identity, but allow acq-*, run-*, dir-* etc.
+  files <- files[startsWith(basename(files), paste0(sub_s, "_"))]
+  files <- unique(files[file.exists(files)])
+  fail <- function(message) {
+    if (!silent) warning(sub_s, ": ", message, call. = FALSE)
+    list(NA, NA)
+  }
+
+  names <- basename(files)
+  dwi <- files[grepl("_space-ACPC_", names) &
+                 grepl("_desc-preproc_dwi\\.nii(\\.gz)?$", names)]
+  if (!length(dwi)) return(fail("No ACPC preprocessed DWI image found in the active dwi directory."))
+  if (length(dwi) > 1L) {
+    stop(sub_s, ": multiple ACPC DWI images found. Select one acquisition/run before extraction:\n",
+         paste(dwi, collapse = "\n"), call. = FALSE)
+  }
+
+  # Derive sidecars from the chosen image, rather than collecting all gradients.
+  stem <- sub("\\.nii(\\.gz)?$", "", dwi)
+  bval_file <- paste0(stem, ".bval")
+  bvec_file <- paste0(stem, ".bvec")
+  btable_candidates <- paste0(stem, c(".b_table", ".b_table.txt"))
+  btable_existing <- btable_candidates[file.exists(btable_candidates)]
+  btable_file <- if (length(btable_existing)) btable_existing[1L] else btable_candidates[1L]
+  if (!file.exists(bvec_file)) return(fail(paste("Missing matching bvec:", bvec_file)))
+  if (!file.exists(bval_file) && !file.exists(btable_file)) {
+    return(fail(paste("Missing matching bval or b_table for", basename(dwi))))
+  }
+
+  mask_stem <- sub("_desc-preproc_dwi$", "_desc-brain_mask", stem)
+  mask <- c(paste0(mask_stem, ".nii"), paste0(mask_stem, ".nii.gz"))
+  mask <- mask[file.exists(mask)]
+  if (!length(mask)) {
+    # QSIprep may provide one shared ACPC mask without an acquisition/run entity.
+    mask <- files[grepl("_space-ACPC_", names) &
+                    grepl("_desc-brain_mask\\.nii(\\.gz)?$", names)]
+  }
+  if (!length(mask)) return(fail("No matching ACPC brain mask found."))
+  if (length(mask) > 1L) stop(sub_s, ": multiple possible brain masks; cannot choose safely.")
+
+  bvec <- as.matrix(read.table(bvec_file))
+  if (file.exists(bval_file)) {
+    bval <- scan(bval_file, quiet = TRUE)
+  } else {
+    bval <- as.numeric(read.table(btable_file)[[1L]])
+  }
+  if (!silent) {
+    message("  DWI:  ", dwi)
+    message("  bvec: ", bvec_file)
+    message("  bval: ", if (file.exists(bval_file)) bval_file else btable_file)
+  }
+  dtiDataobj <- dti::readDWIdata(
+    gradient = bvec, bvalue = bval, dirlist = dwi, format = "NIFTI"
+  )
+  dtiDataobj <- dti::setmask(dtiDataobj, mask)
+  list(dtiDataobj, RNifti::readNifti(dwi))
 }
 
 #################################################################################
@@ -452,54 +478,53 @@ skeleton_masker=function(skeleton_template, skeleton_fathreshold=0.2){
 #################################################################################
 #################################################################################
 
-ACPC_to_MNI152=function(mapfile, transform_path, qsiprep_path, keep_maps){
-  
-  ############################
-  #Check if MNI152 is available
-  #$FSLDIR/data/standard/MNI152_T1_2mm.nii.gz 
-  #as of now, inside the package's own data. But downloadable from git if ever taken out
-  mni152_2mmvol= paste0(system.file('extdata',package='WMskelstats'),'/templates/MNI152_T1_2mm.nii.gz')
-  if (!file.exists(mni152_2mmvol)){
-    prompt = utils::menu(c("Yes", "No"), title=paste0(
-      "\nThe MNI 152 template (2mm) was not detected inside the package directory (", paste0(system.file('extdata',package='WMskelstats'),'/MNI152_T1_2mm.nii.gz'), "). It is needed for coregistration. It can be downloaded from github.\n\nDo you want the template (~1.34 MB) to be downloaded now?"))
-    if (prompt==1) {
-      #function to check if url exists
-      #courtesy of Schwarz, March 11, 2020, CC BY-SA 4.0:
-      #https://stackoverflow.com/a/60627969
-      valid_url <- function(url_in,t=2){
-        con <- url(url_in)
-        check <- suppressWarnings(try(open.connection(con,open="rt",timeout=t),silent=TRUE)[1])
-        suppressWarnings(try(close.connection(con),silent=TRUE))
-        ifelse(is.null(check),TRUE,FALSE)}
-      
-      #Check if URL works and avoid returning error but only print message as requested by CRAN:
-      url="https://raw.githubusercontent.com/CogBrainHealthLab/WMskelstats/main/inst/extdata/templates/MNI152_T1_2mm.nii.gz"
-      if(valid_url(url)) {
-        download.file(url=url,destfile = paste0(system.file(package='VertexWiseR'),'/extdata/templates/MNI152_T1_2mm.nii.gz'))
-      }  else { 
-        stop("The template failed to be downloaded from the github repository. Please check your internet connection. Alternatively, you may visit https://github.com/CogBrainHealthLab/WMskelstats/tree/main/inst/extdata/templates and download the file manually.") #ends function
-      }
-    } else {
-      stop("Coregistration cannot be done without the MNI 152 template.\n")}
+# Applies a precomputed spatial transform; this does not estimate registration.
+ACPC_to_MNI152=function(mapfile, transform_path, qsiprep_path=NULL,
+                        keep_maps=FALSE, fixed=NULL, outputdir=NULL,
+                        m=NULL, sub_s=NULL, nthread=1L){
+  if (length(transform_path) != 1L || !file.exists(transform_path))
+    stop("Expected exactly one existing ACPC-to-MNI152 composite transform")
+  if (is.null(fixed)) {
+    fixed=system.file("extdata", "templates", "FMRIB58_FA-skeleton_2mm.nii",
+                      package="WMskelstats")
+    if (!nzchar(fixed)) stop("FMRIB58 skeleton reference is missing")
   }
-  
-  ############################
-  #Uses rpyANTs (python version of ANTs read via reticulate in R, instead of the R version that requires ITK compiling, which can fail)
-  warped_vol <- rpyANTs::ants_apply_transforms(
-    fixed = mni152_2mmvol, 
-    moving = mapfile,
-    imagetype = 0,
-    transformlist = list(transform_path)
-  )
-  
-  ############################
-  #save coregistered map if needed
-  if(keep_maps){
-    mapdirmni152=paste0(outputdir,'\\',m,'_maps_MNI152')
-    dir.create(mapdirmni152, showWarnings=FALSE)
-    mapfile_coreg=paste0(mapdirmni152,"\\",sub_s,"_",m,"_map_MNI152.nii.gz")
-    coreg=ants$image_write(warped_vol, mapfile_coreg)
-  } 
-  return(warped_vol)
+  warped_vol=qsi_apply_transforms(fixed=fixed, moving=mapfile,
+                                  imagetype=0L, interpolator="linear",
+                                  transformlist=list(transform_path), nthread=nthread)
+  if (keep_maps) {
+    if (is.null(outputdir) || is.null(m) || is.null(sub_s))
+      stop("outputdir, m and sub_s are required when keep_maps=TRUE")
+    mapdir=file.path(outputdir, paste0(m, "_maps_MNI152"))
+    dir.create(mapdir, showWarnings=FALSE, recursive=TRUE)
+    qsi_image_write(warped_vol, file.path(mapdir, paste0(sub_s,"_",m,"_map_MNI152.nii.gz")))
+  }
+  warped_vol
 }
-  
+
+# Look only in this session, then in the shared subject/anat directory.
+# Never use the inverse transform or a transform from a different session.
+.qsi_find_transform <- function(root, subid, session = "") {
+  if (is.null(root)) return(character())
+  suffix <- "_from-ACPC_to-MNI152NLin2009cAsym_mode-image_xfm.h5"
+  subject_dir <- file.path(root, subid)
+  pick <- function(files, prefix, exact = FALSE) {
+    names <- basename(files)
+    keep <- if (exact) names == paste0(prefix, suffix) else
+      startsWith(names, paste0(prefix, "_")) & endsWith(names, suffix)
+    candidates <- unique(files[keep])
+    if (length(candidates) > 1L)
+      stop("Ambiguous ACPC-to-MNI152 transforms for ", prefix, ":\n",
+           paste(candidates, collapse = "\n"), call. = FALSE)
+    candidates
+  }
+  if (nzchar(session)) {
+    files <- list.files(file.path(subject_dir, session), recursive = TRUE,
+                        full.names = TRUE)
+    found <- pick(files, paste(subid, session, sep = "_"))
+    if (length(found)) return(found)
+  }
+  files <- list.files(file.path(subject_dir, "anat"), recursive = TRUE,
+                      full.names = TRUE)
+  pick(files, subid, exact = TRUE)
+}

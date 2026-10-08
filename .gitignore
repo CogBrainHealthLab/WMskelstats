@@ -3,5 +3,6 @@
 .RData
 .Ruserdata
 WMskelstats.Rproj
-src/RcppExports.o
-src/WMskelstats.dll
+src/*.o
+src/*.so
+src/*.dll

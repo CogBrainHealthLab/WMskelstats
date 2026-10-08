@@ -30,14 +30,13 @@ Imports:
     foreach,
     mori,
     mmand,
+    ggplot2,	
     graphics,
     grDevices,
     plotly,
     magrittr,
     Rcpp (>= 1.0.0),
-    reticulate,
     RNifti,
-    rpyANTs,
     stringr
 LinkingTo: 
     Rcpp,
