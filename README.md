@@ -1,6 +1,4 @@
 # WMskelstats
-
-## Development branch
 ### Replaced `rpyANTs` with pre-installed ANTs binaries
 - reticulate no longer required.
 - ANTs can be downloaded and installed from https://github.com/ANTsX/ANTs/releases . No compiling required.
