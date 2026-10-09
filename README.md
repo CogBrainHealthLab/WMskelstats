@@ -4,6 +4,8 @@
 - ANTs can be downloaded and installed from https://github.com/ANTsX/ANTs/releases . No compiling required.
 - ANTs is already installed on NTU HPC (`module load ANTs/2.5.2`)
 - Ran the following code successfully. Output files @ `/scratch/junhong.yu/HBN_output`
+- In RStudio, ANTs can be loaded by using the full path to its bin/ subdirectory e.g.: `Sys.setenv(PATH = paste("C:/path_to_ants_binaries/ants-2.6.5/bin", Sys.getenv("PATH"), sep=";"))` ("sep=;" for Windows, "sep=:" for Linux). Or only set the relevant coregistration function: `options(WMskelstats.antsApplyTransforms = "C:/path_to_ants_binaries/ants-2.6.5/bin/antsApplyTransforms")`
+
 
 ```
 dat=qsi_extract(inputdir="/scratch/junhong.yu/HBN",
