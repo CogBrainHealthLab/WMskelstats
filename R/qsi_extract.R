@@ -126,7 +126,7 @@ qsi_extract=function(inputdir,
         metric_map=startsWith(basename(subfiles), paste0(sub_s, "_")) & grepl(paste0("_space-[^_]+_model-.*_param-", m,"_dwimap\\.nii(\\.gz)?$"),subfiles)
         if (length(which(metric_map)) == 0)
         {
-          if(!exists('dtiDataobj')){if(!silent){message(paste0("  => No preexisting map found, trying to build a dti object..."))}}
+          if(!exists('dtiDataobj', inherits = FALSE)){if(!silent){message(paste0("  => No preexisting map found, trying to build a dti object..."))}}
           
           #if metric is not computable by dti package, skip
           if (! m %in% c("fa","ga","md","k1","k2","k3","mk","mk2","kaxial","kradial","fak")){
@@ -142,7 +142,7 @@ qsi_extract=function(inputdir,
           #making the dti object (dtiData_make function)
           #if dtiDataobj has been created already, skip: will be reused across metrics
           #and cleared before next subject
-          if(!exists('dtioutput')){
+          if(!exists('dtioutput', inherits = FALSE)){
             if(!silent){message("  => Fetching individual DWI data ...")}
             dtioutput=dtiData_make(sub_s, subfiles, silent,
                                       dwi_dir = file.path(session_dir, "dwi"))
@@ -160,7 +160,7 @@ qsi_extract=function(inputdir,
           #dti has two algorithm for metrics computation
           #if already computed, reuse the tensor (all relevant metrics are available)
           
-          if (dti_tensor=='dtiTensor' & !exists('dtiTensorobj')) {
+          if (dti_tensor=='dtiTensor' & !exists('dtiTensorobj', inherits = FALSE)) {
             #DTI
             if(!silent){message(paste0("  => Computing diffusion tensor using ", 
                                        dti_tensor, "..."))}
@@ -171,7 +171,7 @@ qsi_extract=function(inputdir,
                                             mc.cores = nthread)
             Indicesobj <- dti::dtiIndices(dtiTensorobj, 
                                           mc.cores = nthread) 
-          } else if (dti_tensor=='dkiTensor' & !exists('dkiTensorobj')) {
+          } else if (dti_tensor=='dkiTensor' & !exists('dkiTensorobj', inherits = FALSE)) {
             #DKI
             if(!silent){message(paste0("  => Computing diffusion kurtosis tensor (and diffusion tensor)  using ", dti_tensor, "..."))}
             
@@ -184,7 +184,7 @@ qsi_extract=function(inputdir,
             
           } else if (dti_tensor!='dtiTensor' & dti_tensor!='dkiTensor') 
           {stop('The dti_tensor argument must either be dtiTensor or dkiTensor')
-          } else if (exists('dtiTensorobj') | exists('dkiTensorobj')){
+          } else if (exists('dtiTensorobj', inherits = FALSE) | exists('dkiTensorobj', inherits = FALSE)){
             if(!silent){message(paste0("  => Reusing previously computed tensor..."))}
           }
           
