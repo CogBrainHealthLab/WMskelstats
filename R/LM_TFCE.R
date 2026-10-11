@@ -33,7 +33,6 @@
 
 
 ##Main function
-
 LM_TFCE=function(model,contrast, formula, formula_dataset, vox_data, coords, smooth_FWHM, nperm=1000, tail=2, nthread=4)
 {
   #if the user chooses to use a formula, run the formula reader
@@ -46,10 +45,23 @@ LM_TFCE=function(model,contrast, formula, formula_dataset, vox_data, coords, smo
   } else if ((missing(formula) & !missing(formula_dataset)) | (!missing(formula) & missing(formula_dataset)))
   {stop('The formula and the formula_dataset arguments must both be provided to work.')}
   
+  
+  #check if any of vox_data columns contain all identical values
+  vox.to.remove=which(apply(vox_data, 2, function(x) length(unique(x)) == 1))
+  if(length(vox.to.remove)>=1) 
+  {
+    warning(paste0("\n vox_data contains ",length(vox.to.remove),
+                   " column(s) with only one unique value. 
+                   The affected column(s) in vox_data and their corresponding row(s) in coords will be removed from the analyses. 
+                   The indices of these removed voxels are saved as $removed_voxels"))
+    vox_data=vox_data[,-vox.to.remove]
+    coords=coords[-vox.to.remove,]
+  }
+  
   #run all checks for correct structure, recode variables when needed with
   #model_check()
   if (missing(smooth_FWHM)) {smooth_FWHM=NULL};
-  model_summary=model_check(model=model, contrast=contrast, smooth_FWHM=smooth_FWHM,coords=coords,random=NULL,
+  model_summary=WMskelstats:::model_check(model=model, contrast=contrast, smooth_FWHM=smooth_FWHM,coords=coords,random=NULL,
                             vox_data=vox_data)
   model=model_summary$model
   contrast=model_summary$contrast
@@ -172,7 +184,6 @@ LM_TFCE=function(model,contrast, formula, formula_dataset, vox_data, coords, smo
     if (any(!is.finite(values))) {
       stop("Nonfinite TFCE statistics in permutation ", perm)
     }
-    
     max(abs(values))
   }
   
@@ -185,8 +196,14 @@ LM_TFCE=function(model,contrast, formula, formula_dataset, vox_data, coords, smo
 
   
   ##saving list objects
-  returnobj=list(mod[colno + 1, ],vol_to_df(TFCE.orig), TFCE.max,tail,coords)
-  names(returnobj)=c("t_stat","TFCE.orig","TFCE.max","tail","coords")
-  
+  if(length(vox.to.remove)>=1) 
+  {
+  returnobj=list(mod[colno + 1, ],vol_to_df(TFCE.orig), TFCE.max,tail,coords,vox.to.remove)
+  names(returnobj)=c("t_stat","TFCE.orig","TFCE.max","tail","coords","removed_voxels")
+  } else
+  {
+    returnobj=list(mod[colno + 1, ],vol_to_df(TFCE.orig), TFCE.max,tail,coords)
+    names(returnobj)=c("t_stat","TFCE.orig","TFCE.max","tail","coords")
+  }
   return(returnobj)
 }
