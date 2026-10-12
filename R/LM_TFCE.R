@@ -22,6 +22,29 @@
 #'
 #' @returns A list object containing the t-stat and the TFCE statistical maps which can then be subsequently thresholded using TFCE_threshold()
 #' 
+#' @examples
+#' 
+#' \donttest{
+#' demodata=dl_demo(quiet=TRUE)
+#' #voxel-wise DTI data
+#' dti_data=readRDS(paste0(demodata,"/skel_fa_FMRIB58_skeleton_2mm_t0.2.rds"))
+#' skeleton=dti_data$skel_fa[grep('ses-1',row.names(dti_data$skel_fa)),]
+#' #behavioural data to match the dti data
+#' dat_beh=read.csv(paste0(demodata,"/ds007090_behdata.tsv"),sep='\t')
+#' dat_beh=dat_beh[which(dat_beh$participant_id %in% gsub('_ses-1','', row.names(skeleton))),]
+#' 
+#' model=lm_tfce(model=dat_beh[,c('age','sex')],
+#'               contrast=dat_beh[,'age'], 
+#'               vox_data=skeleton[grep('ses-1',row.names(skeleton)),], 
+#'               coords=dti_data$skel_coords, 
+#'               smooth_FWHM=2, 
+#'               nperm=1000, 
+#'               tail=2, 
+#'               nthread=4)
+#'               
+#' model_thresh=TFCE_threshold(model, p=0.05,  k=20)
+#'}
+#' 
 #' @useDynLib WMskelstats, .registration = TRUE
 #' @importFrom mori share
 #' @importFrom Rcpp evalCpp
@@ -34,7 +57,7 @@
 
 ##Main function
 
-LM_TFCE=function(model,contrast, formula, formula_dataset, vox_data, coords, smooth_FWHM, nperm=1000, tail=2, nthread=4)
+lm_tfce=function(model,contrast, formula, formula_dataset, vox_data, coords, smooth_FWHM, nperm=1000, tail=2, nthread=4)
 {
   #if the user chooses to use a formula, run the formula reader
   #and output appropriate objects
