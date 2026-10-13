@@ -45,6 +45,9 @@ qsi_extract=function(inputdir,
     on.exit({ sink(type = "output"); close(shush) }, add = TRUE)
   }
   
+  #Input directory
+  if (!dir.exists(inputdir)) {stop('The directory path to the given inputdir could not be found.')} 
+  
   #Output directory
   if (missing("outputdir")) {
     warning(paste0('No outputdir argument was given. The matrix objects will be saved in a directory named "cohort_skeletons" inside the R temporary directory (tempdir()).\n'))
