@@ -50,6 +50,18 @@ LME_TFCE=function(model,contrast, random, formula, formula_dataset, vox_data, co
   } else if ((missing(formula) & !missing(formula_dataset)) | (!missing(formula) & missing(formula_dataset)))
   {stop('The formula and the formula_dataset arguments must both be provided to work.')}
   
+  #check if any of vox_data columns contain all identical values
+  vox.to.remove=which(apply(vox_data, 2, function(x) length(unique(x)) == 1))
+  if(length(vox.to.remove)>=1) 
+  {
+    warning(paste0("\n vox_data contains ",length(vox.to.remove),
+                   " column(s) with only one unique value. 
+                   The affected column(s) in vox_data and their corresponding row(s) in coords will be removed from the analyses. 
+                   The indices of these removed voxels are saved as $removed_voxels"))
+    vox_data=vox_data[,-vox.to.remove]
+    coords=coords[-vox.to.remove,]
+  }
+  
   #run all checks for correct structure, recode variables when needed with
   #model_check()
   if (missing(random)) {stop('The random argument must be provided')};
@@ -213,10 +225,15 @@ LME_TFCE=function(model,contrast, random, formula, formula_dataset, vox_data, co
   
   parallel::stopCluster(cl)
 
-  
   ##saving list objects
-  returnobj=list(mod$t_stat[colno+1,],vol_to_df(TFCE.orig), TFCE.max,tail,coords)
-  names(returnobj)=c("t_stat","TFCE.orig","TFCE.max","tail","coords")
-  
+  if(length(vox.to.remove)>=1) 
+  {
+    returnobj=list(mod$t_stat[colno+1,],vol_to_df(TFCE.orig), TFCE.max,tail,coords,vox.to.remove)
+    names(returnobj)=c("t_stat","TFCE.orig","TFCE.max","tail","coords","removed_voxels")
+  } else
+  {
+    returnobj=list(mod$t_stat[colno+1,],vol_to_df(TFCE.orig), TFCE.max,tail,coords)
+    names(returnobj)=c("t_stat","TFCE.orig","TFCE.max","tail","coords")
+  }
   return(returnobj)
 }
