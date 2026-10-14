@@ -62,9 +62,20 @@ LME_TFCE=function(model,contrast, random, formula, formula_dataset, vox_data, co
   colno=model_summary$colno
 
   if (!is.null(model_summary$random)) {random=model_summary$random}
-  
+
+  #check if any of vox_data columns contain all identical values
+  vox.to.remove=which(apply(vox_data, 2, function(x) length(unique(x)) == 1))
+  if(length(vox.to.remove)>=1) 
+  {
+    warning(paste0("\n vox_data contains ",length(vox.to.remove),
+                   " column(s) with only one unique value. 
+                   The affected column(s) in vox_data and their corresponding row(s) in coords will be removed from the analyses. 
+                   The indices of these removed voxels are saved as $removed_voxels"))
+    vox_data=vox_data[,-vox.to.remove]
+    coords=coords[-vox.to.remove,]
+  }
+
   ##unpermuted TFCE
-  
   start=Sys.time()
   message("Estimating unpermuted TFCE image...")
   ## Freedman–Lane preparation: fit the reduced nuisance model once
@@ -213,10 +224,15 @@ LME_TFCE=function(model,contrast, random, formula, formula_dataset, vox_data, co
   
   parallel::stopCluster(cl)
 
-  
   ##saving list objects
-  returnobj=list(mod$t_stat[colno+1,],vol_to_df(TFCE.orig), TFCE.max,tail,coords)
-  names(returnobj)=c("t_stat","TFCE.orig","TFCE.max","tail","coords")
-  
+  if(length(vox.to.remove)>=1) 
+  {
+    returnobj=list(mod$t_stat[colno+1,],vol_to_df(TFCE.orig), TFCE.max,tail,coords,vox.to.remove)
+    names(returnobj)=c("t_stat","TFCE.orig","TFCE.max","tail","coords","removed_voxels")
+  } else
+  {
+    returnobj=list(mod$t_stat[colno+1,],vol_to_df(TFCE.orig), TFCE.max,tail,coords)
+    names(returnobj)=c("t_stat","TFCE.orig","TFCE.max","tail","coords")
+  }
   return(returnobj)
 }
