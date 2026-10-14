@@ -34,7 +34,7 @@ Note, any version of R<4.5.0 will not work.
 
 Install `WMskelstats` (development branch) within this R session:
 ```
-remotes::install_github("cogbrainhealthlab/WMskelstats@development")
+remotes::install_github("cogbrainhealthlab/WMskelstats")
 ```
 ### To do (03/10/2026)
 - need to compare output data with those generated using `rpyANTs` (main branch version of the package). I could not get `rpyANTs` to work on NTU HPC. I suppose they should be identical since we are using the pre-installed ANTs binary instead a custom-made ANTs replacement function.
