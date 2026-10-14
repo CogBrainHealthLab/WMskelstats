@@ -82,10 +82,6 @@ model=LME_TFCE(model=dat_beh[,c('age_months','sex')],
                nthread=2)
 model_thresh=TFCE_threshold(model, p=0.05,  k=20)
 model_thresh$cluster_level_results
-
-#To plot the significant clusters:
-#plot_skel(dti_data$skel_coords, model_thresh$thresholded_tstat_map)
-
 }
 
 }

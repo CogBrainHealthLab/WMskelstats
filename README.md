@@ -62,8 +62,6 @@ All of these steps are done on automatically from all subjects from a given QSIp
 
 ## Demonstration
 
-***/!\\ only a placeholder at the moment, another dataset will be used /!\\***
-
 For this demonstration, we use data from the Penn LEAD (Penn Longitudinal Executive functioning in Adolescent Development) public dataset, already preprocessed using QSIPrep, from the [OpenNeuro platform (ds007090, 1.0.4)](https://openneuro.org/datasets/ds007090/versions/1.0.4).
 
 ### Extracting skeleton maps
@@ -139,13 +137,97 @@ At the end of the process, two R objects are generated: skel_fa_FMRIB58_skeleton
 For the sake of the demo, we already provide two extracted .rds files. They can be downloaded (\~62 MB total) from the Github directory to a desired destinations using the following function:
 
 ```{r}
-dl_demo(path=tempdir(), #R's temporary directory 
-        quiet=TRUE)
+demodata=dl_demo(path=tempdir(), #R's temporary directory 
+                 quiet=TRUE)
 ```
 
-We load the behavioural data to select variables for our models:
+Here, we run the skeleton data outputted by qsi_extract() for the FA data of the cohort. 
 
 ```{r}
-beh_data=read.tsv(paste0(tempdir(),"/ds007090_behdata.tsv"), sep="\t")
+dti_data=readRDS(paste0(demodata,"/skel_fa_FMRIB58_skeleton_2mm_t0.2.rds"))
+skeleton=dti_data$skel_fa
 ```
 
+We load the behavioural data to select variables for our models, and select participant with matching IDs and sessions to that of the data matrix's row names:
+
+```{r}
+beh_data=read.csv(paste0(demodata,"/ds007090_behdata.csv"))
+beh_data=beh_data[order(beh_data$participant_id),]
+
+#We match the row names (e.g., "sub-0001_ses-1"", "sub-0002_ses-2"") in the matrix:
+beh_data$id_ses=paste0(beh_data$participant_id, '_', beh_data$session_id)
+beh_data=beh_data[which(beh_data$id_ses %in% row.names(skeleton)),]
+
+```
+
+In this example, we test the effect of age on FA, controlling for sex, with a simple linear model with the `LM_TFCE()` function. The function identifies voxel-wise clusters in the white matter skeleton via threshold-free cluster enhancement (TFCE) correction significant at cluster-wise p < .05:
+
+```{r}
+model_LM=LM_TFCE(model=beh_data[,c('age_months','sex')], #all model variables
+              contrast=beh_data[,'age_months'], #main predictor of interest
+              vox_data=skeleton[row.names(skeleton),], 
+              coords=dti_data$skel_coords,
+              smooth_FWHM=5, #full-width at half-maximum smoothing kernel
+              nperm=1000,  #number of permutations
+              tail=2,    #two-tailed effect
+              nthread=2) #number of CPU threads to use
+
+#cluster-wise threshold           
+model_thresh_LM=TFCE_threshold(model_LM, p=0.05,  k=20)
+```
+
+The identified clusters and their coordinates are summarised in the model object:
+
+
+```{r}
+print(model_thresh_LM$cluster_level_results)
+```
+
+WMskelstats also has a linear mixed models function (`LME_TFCE()`) which is used in a similar way and allows the for addition of a random variable:
+
+```{r}
+model_LME=LME_TFCE(model=beh_data[,c('age_months','sex')],
+               contrast=beh_data[,'age_months'], 
+               random=beh_data[,'participant_id'],
+               vox_data=skeleton[row.names(skeleton),], 
+               coords=dti_data$skel_coords, 
+               smooth_FWHM=5, 
+               nperm=1000, 
+               tail=2, 
+               nthread=2)
+#to choose the cluster threshold value:
+model_thresh_LME=TFCE_threshold(model_LME, p=0.05,  k=20) 
+```
+Clusters with the mixed models:
+
+```{r}
+print(model_thresh_LME$cluster_level_results)
+```
+### Plotting
+
+The package provides an interactive viewer window (`skel_viewer()`) which allows viewing the skeleton's slices at each axis (axial, coronal, sagittal), as well as interactively visualising the data in 3D space. Below is an example screenshot with the significant clusters identified previously:
+
+```{r, eval=FALSE}
+plot_skel(coords=dti_data$skel_coords,
+          data=model_thresh_LME$thresholded_tstat_map)
+```
+
+![Significant clusters plotted via skel_viewer](man/figures/skel_viewer.jpg)
+
+A static 2D plot can also be created with `plot_lightbox()` which lets users define the exact slices they wish to plot, in a grid-like manner:
+
+```{r}
+plot_lightbox(z_slices=c(20, 30, 40, 50),
+              vox_data=model_thresh_LME$thresholded_tstat_map, 
+              coords=dti_data$skel_coords,
+              pointsize=1, 
+              strip_fontsize=10,
+              strip_margin=5,
+              cmap="coolwarm", 
+              colorscale_title="t-stat (TFCE thresholded)",
+              dark_mode=TRUE, #black background instead of white
+              nrow=2, #number of rows on the grid
+              na_color="#7F7F7F")
+```
+
+![Significant clusters plotted via plot_lightbox](man/figures/plot_lightbox.jpg)

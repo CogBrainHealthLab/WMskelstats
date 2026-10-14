@@ -13,7 +13,7 @@
 #' if (interactive()) {
 #' demodata=dl_demo(quiet=TRUE)
 #' dti_data=readRDS(paste0(demodata,"/skel_fa_FMRIB58_skeleton_2mm_t0.2.rds"))
-#' plot_skel(dti_data$skel_coords, dti_data$skel_fa[1,])
+#' skel_viewer(dti_data$skel_coords, dti_data$skel_fa[1,])
 #' }
 #' @importFrom shiny fluidPage titlePanel sidebarLayout sidebarPanel sliderInput plotOutput hr h4
 #'   selectInput checkboxInput conditionalPanel br downloadButton mainPanel fluidRow column uiOutput
@@ -25,7 +25,7 @@
 #' @importFrom magrittr %>%
 #'
 #' @export
-plot_skel <- function(coords, data, template = rep(NA, length(data))) {
+skel_viewer <- function(coords, data, template = rep(NA, length(data))) {
   stopifnot(is.matrix(coords) || is.data.frame(coords))
   stopifnot(ncol(coords) >= 3)
   stopifnot(length(data) == nrow(coords))

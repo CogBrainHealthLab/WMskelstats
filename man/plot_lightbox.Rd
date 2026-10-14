@@ -50,7 +50,7 @@ slice labels, in points. Defaults to \code{5}.}
 
 \item{cmap}{Character string specifying the color palette. Supported values
 are \code{"viridis"}, \code{"plasma"}, \code{"inferno"}, \code{"magma"},
-\code{"cividis"}, \code{"jet"}, \code{"rainbow"}, and \code{"hot"}.
+\code{"cividis"}, \code{"jet"}, \code{"rainbow"}, \code{"coolwarm"}, and \code{"hot"}.
 Defaults to \code{"viridis"}. Unrecognized values use the
 \code{"viridis"} palette.}
 
