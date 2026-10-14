@@ -9,6 +9,12 @@
 #'
 #' @return A \code{\link[shiny]{shinyApp}} object representing the interactive application.
 #'
+#' @examples
+#' if (interactive()) {
+#' demodata=dl_demo(quiet=TRUE)
+#' dti_data=readRDS(paste0(demodata,"/skel_fa_FMRIB58_skeleton_2mm_t0.2.rds"))
+#' plot_skel(dti_data$skel_coords, dti_data$skel_fa[1,])
+#' }
 #' @importFrom shiny fluidPage titlePanel sidebarLayout sidebarPanel sliderInput plotOutput hr h4
 #'   selectInput checkboxInput conditionalPanel br downloadButton mainPanel fluidRow column uiOutput
 #'   observeEvent req updateSliderInput renderUI renderPlot reactive downloadHandler shinyApp
@@ -55,10 +61,151 @@ plot_skel <- function(coords, data, template = rep(NA, length(data))) {
   y_range <- range(df$Y, na.rm = TRUE)
   z_range <- range(df$Z, na.rm = TRUE)
   
+  # CSS controls dimensions; keep the Plotly widget mounted when toggling slices.
   ui <- fluidPage(
-    sidebarLayout(
-      sidebarPanel(
-        width = 3,
+    shiny::tags$head(
+      shiny::tags$style(shiny::HTML("
+      #skel-app { padding: 12px; }
+      #skel-app, #skel-app * { box-sizing: border-box; }
+      #skel-app .skel-layout {
+        display: grid; grid-template-columns: clamp(190px, 23vw, 380px) minmax(0, 1fr);
+        gap: clamp(6px, 1vw, 16px); align-items: stretch;
+        height: calc(100vh - 24px); height: calc(100dvh - 24px);
+        min-height: 300px;
+      }
+      #skel-app .skel-controls {
+        height: 100%; min-height: 0; overflow-y: auto;
+        min-width: 0; padding: clamp(8px, 1.5vh, 16px); background: #f5f5f5;
+        border: 1px solid #ddd; border-radius: 4px;
+      }
+      #skel-app .skel-controls .shiny-input-container {
+        width: 100%; max-width: 100%; margin-bottom: clamp(2px, 0.6vh, 8px);
+      }
+      #skel-app .skel-controls h4 {
+        margin-top: clamp(6px, 1.4vh, 16px);
+        margin-bottom: clamp(4px, 1vh, 10px);
+      }
+      #skel-app .skel-controls .btn { white-space: normal; }
+      #skel-app .skel-controls-inner { display: flow-root; }
+      #skel-app .skel-controls label { font-size: 13px; line-height: 1.15; }
+      #skel-app .skel-controls h4 { font-size: 16px; }
+      /* Keep native slider heights and offsets: the track, handles,
+         value bubbles and tick labels must share the same geometry. */
+      #skel-app .skel-controls .checkbox { margin-top: 4px; margin-bottom: 4px; }
+      #skel-app .skel-controls .selectize-control { margin-bottom: 4px; }
+      #skel-app .skel-slice .shiny-plot-output { width: 100% !important; }
+      #skel-app .skel-slice img { max-width: 100%; }
+      #skel-app .skel-main {
+        min-width: 0; min-height: 0; height: 100%;
+        display: grid; grid-template-rows: minmax(0, 58fr) minmax(0, 42fr);
+        gap: 12px;
+      }
+      #skel-app .skel-3d, #skel-app .skel-slice,
+      #skel-app .skel-slice-region { min-width: 0; min-height: 0; height: 100%; }
+      #skel-app .skel-main.slices-hidden { grid-template-rows: minmax(0, 1fr); }
+      #skel-app .skel-main.slices-hidden .skel-slice-region { display: none !important; }
+      #skel-app .skel-slices {
+        display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px; height: 100%; min-height: 0;
+      }
+      /* Keep three equally flexible columns on desktop and tablet sizes.
+         Only switch to stacked slices on genuinely narrow windows. */
+      @media (max-width: 699px) {
+        #skel-app { padding: 8px; }
+        #skel-app .skel-layout {
+          height: auto; min-height: 0;
+          grid-template-columns: minmax(0, 1fr); gap: 12px;
+        }
+        #skel-app .skel-controls { height: auto; overflow: visible; }
+        #skel-app .skel-controls-inner { zoom: 1 !important; }
+        #skel-app .skel-main { display: block; height: auto; }
+        #skel-app .skel-3d { height: 55vh; height: 55dvh; min-height: 180px; }
+        #skel-app .skel-main.slices-hidden .skel-3d { height: 80vh; height: 80dvh; }
+        #skel-app .skel-slice-region { height: auto; margin-top: 12px; }
+        #skel-app .skel-slices {
+          height: auto; grid-template-columns: minmax(0, 1fr);
+          grid-auto-rows: max(180px, 42vh);
+        }
+      }
+")),
+      shiny::tags$script(shiny::HTML("
+      (function () {
+        function initSkeletonLayout() {
+          var root = document.getElementById('skel-app');
+          if (!root || root.dataset.resizeReady) return;
+          root.dataset.resizeReady = 'true';
+          var main = root.querySelector('.skel-main');
+          var toggle = root.querySelector('#show_2d');
+          var timer;
+          var controls = root.querySelector('.skel-controls');
+          var controlsInner = root.querySelector('.skel-controls-inner');
+          var lastControlSize = '';
+          function fitControls(force) {
+            var key = window.innerWidth + ':' + window.innerHeight + ':' + toggle.checked;
+            if (!force && key === lastControlSize) return;
+            lastControlSize = key;
+            controlsInner.style.zoom = '1';
+            if (window.innerWidth < 700) return;
+            var style = window.getComputedStyle(controls);
+            var available = controls.clientHeight - parseFloat(style.paddingTop) -
+                            parseFloat(style.paddingBottom) - 2;
+            var natural = controlsInner.scrollHeight;
+            // Fit the entire control block where practical; keep a readable floor.
+            var scale = Math.max(0.72, Math.min(1, available / Math.max(1, natural)));
+            controlsInner.style.zoom = String(scale);
+          }
+          window.addEventListener('resize', function () { fitControls(false); });
+          function notifyResize() {
+            clearTimeout(timer);
+            timer = setTimeout(function () {
+              // Notify both Shiny's image outputs and the htmlwidgets binding.
+              window.dispatchEvent(new Event('resize'));
+            }, 100);
+          }
+          function updateLayout() {
+            main.classList.toggle('slices-hidden', !toggle.checked);
+            setTimeout(function () { fitControls(true); }, 0);
+            notifyResize();
+          }
+          toggle.addEventListener('change', updateLayout);
+          updateLayout();
+          // Shiny enhances sliders/selects after DOM readiness; remeasure then.
+          if (window.jQuery) {
+            window.jQuery(document).on('shiny:connected.skelLayout', function () {
+              setTimeout(function () { fitControls(true); notifyResize(); }, 100);
+            });
+          }
+          if (window.ResizeObserver) {
+            var sizes = new WeakMap();
+            var observer = new ResizeObserver(function (entries) {
+              var changed = false;
+              entries.forEach(function (entry) {
+                var size = Math.round(entry.contentRect.width) + ':' +
+                           Math.round(entry.contentRect.height);
+                if (sizes.get(entry.target) !== size) {
+                  sizes.set(entry.target, size);
+                  changed = true;
+                }
+              });
+              if (changed) notifyResize();
+            });
+            root.querySelectorAll('.skel-3d, .skel-slice').forEach(function (el) {
+              observer.observe(el);
+            });
+          }
+        }
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', initSkeletonLayout);
+        } else {
+          initSkeletonLayout();
+        }
+      })();
+"))
+    ),
+    shiny::div(id = "skel-app",
+    shiny::div(class = "skel-layout",
+      shiny::div(class = "skel-controls",
+      shiny::div(class = "skel-controls-inner",
         h4("Slice Coordinates"),
         sliderInput("x_slider", "X Coordinate (Sagittal):", min = floor(x_range[1]), max = ceiling(x_range[2]), value = round(median(df$X)), step = 1),
         plotOutput("x_density", height = "25px"),
@@ -85,21 +232,24 @@ plot_skel <- function(coords, data, template = rep(NA, length(data))) {
           condition = "input.show_2d == true",
           downloadButton("download_2d_png", "Save 2D Slices as PNG", class = "btn-primary", style = "width: 100%;")
         )
+      )
       ),
       
-      mainPanel(
-        width = 9,
-        fluidRow(column(12, uiOutput("plot_3d_container"))),
+      shiny::div(class = "skel-main",
+        shiny::div(class = "skel-3d",
+          plotlyOutput("plot_3d", width = "100%", height = "100%")
+        ),
         conditionalPanel(
           condition = "input.show_2d == true",
-          br(),
-          fluidRow(
-            column(4, plotOutput("plot_sagittal", height = "450px")),
-            column(4, plotOutput("plot_coronal", height = "450px")),
-            column(4, plotOutput("plot_axial", height = "450px"))
+          class = "skel-slice-region",
+          shiny::div(class = "skel-slices",
+            shiny::div(class = "skel-slice", plotOutput("plot_sagittal", height = "100%")),
+            shiny::div(class = "skel-slice", plotOutput("plot_coronal", height = "100%")),
+            shiny::div(class = "skel-slice", plotOutput("plot_axial", height = "100%"))
           )
         )
       )
+    )
     )
   )
   
@@ -143,11 +293,6 @@ plot_skel <- function(coords, data, template = rep(NA, length(data))) {
       if (!is.null(cd$z)) updateSliderInput(session, "z_slider", value = round(cd$z))
     }, ignoreNULL = TRUE, ignoreInit = TRUE)
     
-    output$plot_3d_container <- renderUI({
-      h <- if (isTRUE(input$show_2d)) "500px" else "800px"
-      plotlyOutput("plot_3d", height = h)
-    })
-    
     output$x_density <- renderPlot({ render_density_slice(dens_x(), input$x_slider, x_range) }, bg = "transparent")
     output$y_density <- renderPlot({ render_density_slice(dens_y(), input$y_slider, y_range) }, bg = "transparent")
     output$z_density <- renderPlot({ render_density_slice(dens_z(), input$z_slider, z_range) }, bg = "transparent")
@@ -186,8 +331,6 @@ plot_skel <- function(coords, data, template = rep(NA, length(data))) {
     }
     
     output$plot_3d <- renderPlotly({
-      input$show_2d
-      
       d_valid <- df_valid()
       d_na    <- df_na()
       d_grey  <- df_grey()
@@ -253,14 +396,16 @@ plot_skel <- function(coords, data, template = rep(NA, length(data))) {
       
       p <- layout(p, title = list(text = "3D Skeleton Overlay", font = list(color = fg_3d)), 
                   paper_bgcolor = bg_3d, plot_bgcolor = bg_3d, autosize = TRUE,
+                  margin = list(l = 0, r = 55, b = 0, t = 45),
+                  uirevision = "skeleton-camera",
                   scene = list(aspectmode = "data", xaxis = axx, yaxis = axy, zaxis = axz))
       
-      event_register(p, "plotly_click")
+      plotly::config(event_register(p, "plotly_click"), responsive = TRUE)
     })
     
-    output$plot_sagittal <- renderPlot({ req(input$show_2d); draw_sagittal() })
-    output$plot_coronal  <- renderPlot({ req(input$show_2d); draw_coronal() })
-    output$plot_axial    <- renderPlot({ req(input$show_2d); draw_axial() })
+    output$plot_sagittal <- renderPlot({ req(input$show_2d); draw_sagittal() }, execOnResize = TRUE)
+    output$plot_coronal  <- renderPlot({ req(input$show_2d); draw_coronal() }, execOnResize = TRUE)
+    output$plot_axial    <- renderPlot({ req(input$show_2d); draw_axial() }, execOnResize = TRUE)
     
     output$download_2d_png <- downloadHandler(
       filename = function() {
@@ -394,7 +539,9 @@ render_slice_2d <- function(valid_pts, tmpl_pts, grey_pts, x_var, y_var, x_range
   grid_col    <- if (black_bg) "#333333" else "#E5E5E5"
   grey_pt_col <- if (black_bg) "#555555" else "lightgrey"
   
-  par(mar = c(4, 4, 2.5, 1), bg = bg_col, col.axis = fg_col, col.lab = fg_col, col.main = fg_col, fg = fg_col)
+  # Device dimensions are in inches, so this also respects high-DPI displays.
+  text_scale <- max(0.65, min(1, min(par("din")) / 3.5))
+  par(cex = text_scale, mar = c(4, 4, 2.5, 1), bg = bg_col, col.axis = fg_col, col.lab = fg_col, col.main = fg_col, fg = fg_col)
   plot(NA, xlim = x_range, ylim = y_range, asp = 1, xaxs = "i", yaxs = "i", xlab = xlab, ylab = ylab, main = main_title, col.axis = fg_col, col.lab = fg_col)
   grid(col = grid_col, lty = "solid")
   

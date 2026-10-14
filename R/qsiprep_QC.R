@@ -6,7 +6,7 @@
 #'
 #' @param filename Filename of the .csv file. Set to `QSIPREP_QC.csv` by default
 #' @param N_SD_FD The relative cutoffs for `mean_FD` in terms of the number of SDs from the mean. Subjects whose `mean_FD` > (mean(mean_FD)+N_SD_FD*sd(mean_FD)) will be identified as QC failure cases. Set to `2` by default
-#' @param N_SD_neigbour The relative cutoffs for `raw_neighbor_corr` in terms of the number of SDs from the mean. Subjects whose `raw_neighbor_corr` < (mean(raw_neighbor_corr)-N_SD_neighbor*sd(raw_neighbor_corr)) will be identified as QC failure cases. Set to `2` by default
+#' @param N_SD_neighbor The relative cutoffs for `raw_neighbor_corr` in terms of the number of SDs from the mean. Subjects whose `raw_neighbor_corr` < (mean(raw_neighbor_corr)-N_SD_neighbor*sd(raw_neighbor_corr)) will be identified as QC failure cases. Set to `2` by default
 #' @param absthresh_FD The absolute cutoffs for `mean_FD` . Subjects whose `mean_FD` > `absthresh_FD` will be identified as QC failure cases. Not specified by default. `N_SD_FD` will be ignored if specified
 #' @param absthresh_neighbor The absolute cutoffs for `raw_neighbor_corr` . Subjects whose `raw_neighbor_corr` < `absthresh_neighbor` will be identified as QC failure cases. Not specified by default. `N_SD_neighbor` will be ignored if specified
 
@@ -16,6 +16,8 @@
 #' \dontrun{
 #' qsiprep_QC()
 #' }
+#' @importFrom utils read.table write.table
+#' @importFrom stats sd
 #' @export
 
 ########################################################################################################
@@ -39,10 +41,10 @@ qsiprep_QC=function(filename="QSIPREP_QC.csv", N_SD_FD=2, N_SD_neighbor=2, absth
   {
     if(sub==1)
     {
-      dat=read.table(filelist[sub],header = T, sep="\t") 
+      dat=utils::read.table(filelist[sub],header = T, sep="\t") 
     } else
     {
-      dat.temp=read.table(filelist[sub],header = T, sep="\t")
+      dat.temp=utils::read.table(filelist[sub],header = T, sep="\t")
       dat=rbind_fill(dat,dat.temp)
       remove(dat.temp)
     }
@@ -75,7 +77,7 @@ qsiprep_QC=function(filename="QSIPREP_QC.csv", N_SD_FD=2, N_SD_neighbor=2, absth
     }
 
     cat(paste0(length(del.sh), " DWI scans failed QC. QC criteria:mean_FD > ",round(FD_crit,2), " and raw_neighbor_corr < ",round(neighbor_crit,2)))
-    write.table(del.sh,row.names=F, col.names=F,quote=F, file="del.sh")
+    utils::write.table(del.sh,row.names=F, col.names=F,quote=F, file="del.sh")
   } else { cat("all DWI scans passed QC")}
-  write.table(dat, file=filename, row.names = F, sep=",")
+  utils::write.table(dat, file=filename, row.names = F, sep=",")
 }

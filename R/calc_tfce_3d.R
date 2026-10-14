@@ -8,6 +8,10 @@
 #' @param tail Type of test: 1 (positive tail), -1 (negative tail), or 2 (two-tailed, default = 2).
 #'
 #' @return 3D array of TFCE statistics.
+#' 
+#' @examples
+#' random_3d_data=array(runif(n = 3*1000, min=0,max=10), c(3, 1000, 3))
+#' tfce_stats=calc_tfce_3d(random_3d_data)
 #' @export
 calc_tfce_3d <- function(t_stat, E = 0.5, H = 2.0, dh = 0.1, connectivity = 26, tail = 2) {
   if (!is.array(t_stat) || length(dim(t_stat)) != 3) {

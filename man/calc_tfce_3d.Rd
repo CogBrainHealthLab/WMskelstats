@@ -25,3 +25,7 @@ calc_tfce_3d(t_stat, E = 0.5, H = 2, dh = 0.1, connectivity = 26, tail = 2)
 \description{
 Threshold-Free Cluster Enhancement (TFCE) in 3D
 }
+\examples{
+random_3d_data=array(runif(n = 3*1000, min=0,max=10), c(3, 1000, 3))
+tfce_stats=calc_tfce_3d(random_3d_data)
+}

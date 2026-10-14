@@ -24,25 +24,32 @@
 #' 
 #' @examples
 #' 
-#' \donttest{
-#' demodata=dl_demo(quiet=TRUE)
-#' #voxel-wise DTI data
-#' dti_data=readRDS(paste0(demodata,"/skel_fa_FMRIB58_skeleton_2mm_t0.2.rds"))
-#' skeleton=dti_data$skel_fa[grep('ses-1',row.names(dti_data$skel_fa)),]
-#' #behavioural data to match the dti data
-#' dat_beh=read.csv(paste0(demodata,"/ds007090_behdata.tsv"),sep='\t')
-#' dat_beh=dat_beh[which(dat_beh$participant_id %in% gsub('_ses-1','', row.names(skeleton))),]
-#' 
-#' model=lm_tfce(model=dat_beh[,c('age','sex')],
-#'               contrast=dat_beh[,'age'], 
-#'               vox_data=skeleton[grep('ses-1',row.names(skeleton)),], 
-#'               coords=dti_data$skel_coords, 
-#'               smooth_FWHM=2, 
-#'               nperm=1000, 
-#'               tail=2, 
-#'               nthread=4)
-#'               
-#' model_thresh=TFCE_threshold(model, p=0.05,  k=20)
+#'\donttest{
+#'  demodata=dl_demo(quiet=TRUE)
+#'  #voxel-wise DTI data
+#'  dti_data=readRDS(paste0(demodata,"/skel_fa_FMRIB58_skeleton_2mm_t0.2.rds"))
+#'  skeleton=dti_data$skel_fa
+#'  
+#'  #behavioural data to match the dti data
+#'  dat_beh=read.csv(paste0(demodata,"/ds007090_behdata.csv"))
+#'  dat_beh$id_ses=paste0(dat_beh$participant_id, '_', dat_beh$session_id)
+#'  dat_beh=dat_beh[which(dat_beh$id_ses %in% row.names(skeleton)),]
+#'  dat_beh=dat_beh[order(dat_beh$participant_id),]
+#'  
+#'  model=LM_TFCE(model=dat_beh[,c('age_months','sex')],
+#'                contrast=dat_beh[,'age_months'], 
+#'                vox_data=skeleton[row.names(skeleton),], 
+#'                coords=dti_data$skel_coords, 
+#'                smooth_FWHM=5, 
+#'                nperm=100, 
+#'                tail=2, 
+#'                nthread=2)
+#'  model_thresh=TFCE_threshold(model, p=0.05,  k=20)
+#'  model_thresh$cluster_level_results
+#'  
+#'  #To plot the significant clusters:
+#'  #plot_skel(dti_data$skel_coords, model_thresh$thresholded_tstat_map)
+#'  
 #'}
 #' 
 #' @useDynLib WMskelstats, .registration = TRUE
@@ -52,6 +59,7 @@
 #' @importFrom parallel makeCluster stopCluster
 #' @importFrom doParallel registerDoParallel
 #' @importFrom doSNOW registerDoSNOW
+#' @importFrom utils setTxtProgressBar txtProgressBar
 #' @export
 
 
@@ -73,7 +81,7 @@ LM_TFCE=function(model,contrast, formula, formula_dataset, vox_data, coords, smo
   #run all checks for correct structure, recode variables when needed with
   #model_check()
   if (missing(smooth_FWHM)) {smooth_FWHM=NULL};
-  model_summary=WMskelstats:::model_check(model=model, contrast=contrast, smooth_FWHM=smooth_FWHM,coords=coords,random=NULL,
+  model_summary=model_check(model=model, contrast=contrast, smooth_FWHM=smooth_FWHM,coords=coords,random=NULL,
                             vox_data=vox_data)
   model=model_summary$model
   contrast=model_summary$contrast
@@ -135,7 +143,7 @@ LM_TFCE=function(model,contrast, formula, formula_dataset, vox_data, coords, smo
   dh_fixed = if (peak > 0) peak / 100 else 0.1
   
   
-  TFCE.orig=calc_tfce_3d(WMskelstats:::df_to_vol(coords,mod[colno + 1, ]), tail=tail,dh = dh_fixed)
+  TFCE.orig=calc_tfce_3d(df_to_vol(coords,mod[colno + 1, ]), tail=tail,dh = dh_fixed)
   
   
   
@@ -177,8 +185,11 @@ LM_TFCE=function(model,contrast, formula, formula_dataset, vox_data, coords, smo
   )
   
   # Progress bar setup
-  pb=txtProgressBar(max = nperm, style = 3)
-  opts=list(progress = function(n) setTxtProgressBar(pb, n))
+  pb=utils::txtProgressBar(max = nperm, style = 3)
+  opts=list(progress = function(n) utils::setTxtProgressBar(pb, n))
+  
+  #Solves the "no visible binding for global variable" issue
+  . <- perm <- NULL 
   
   # 4. Execute parallel loop using shared memory handles
   start=Sys.time()
@@ -199,7 +210,7 @@ LM_TFCE=function(model,contrast, formula, formula_dataset, vox_data, coords, smo
     
     mod.perm = lm_fast(Y = vox_data_perm,X = model,return_coefficients = FALSE)
     
-    vol_stat = WMskelstats:::df_to_vol(coords, mod.perm[colno + 1, ])
+    vol_stat = df_to_vol(coords, mod.perm[colno + 1, ])
     tfce_perm = calc_tfce_3d(vol_stat, tail = tail,dh = dh_fixed)
     
     values = as.numeric(tfce_perm[coords])

@@ -17,11 +17,11 @@ qsiprep_QC(
 
 \item{N_SD_FD}{The relative cutoffs for \code{mean_FD} in terms of the number of SDs from the mean. Subjects whose \code{mean_FD} > (mean(mean_FD)+N_SD_FD*sd(mean_FD)) will be identified as QC failure cases. Set to \code{2} by default}
 
+\item{N_SD_neighbor}{The relative cutoffs for \code{raw_neighbor_corr} in terms of the number of SDs from the mean. Subjects whose \code{raw_neighbor_corr} < (mean(raw_neighbor_corr)-N_SD_neighbor*sd(raw_neighbor_corr)) will be identified as QC failure cases. Set to \code{2} by default}
+
 \item{absthresh_FD}{The absolute cutoffs for \code{mean_FD} . Subjects whose \code{mean_FD} > \code{absthresh_FD} will be identified as QC failure cases. Not specified by default. \code{N_SD_FD} will be ignored if specified}
 
 \item{absthresh_neighbor}{The absolute cutoffs for \code{raw_neighbor_corr} . Subjects whose \code{raw_neighbor_corr} < \code{absthresh_neighbor} will be identified as QC failure cases. Not specified by default. \code{N_SD_neighbor} will be ignored if specified}
-
-\item{N_SD_neigbour}{The relative cutoffs for \code{raw_neighbor_corr} in terms of the number of SDs from the mean. Subjects whose \code{raw_neighbor_corr} < (mean(raw_neighbor_corr)-N_SD_neighbor*sd(raw_neighbor_corr)) will be identified as QC failure cases. Set to \code{2} by default}
 }
 \value{
 outputs a .csv file containing the aslprep QC data and the bash script \code{del.sh} if there are scans that fail the QC

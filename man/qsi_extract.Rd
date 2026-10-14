@@ -24,7 +24,7 @@ qsi_extract(
 
 \item{outputdir}{A string object containing the path of the directory where the final cohort-wise RDS will be stored for each metric (as well as metrics maps if \code{keep_maps} is set as TRUE). Default is 'cohort_skeletons' in the R temporary directory (tempdir()).}
 
-\item{metrics}{A string object or vector of string objects containing the name (s) of the metric(s) to be estimated, in lower case. For QSIprep outputs, only the dti package's "dtiIndices/dkiIndices" metrics apply ("fa","ga","md","k1","k2","k3","mk","mk2","kaxial","kradial","fak"); for QSIrecon outputs, it can be any reconstruction output that has a "\emph{param-\}_dwimap.nii.gz" suffix in MNI152 space (e.g., 'icvf', 'od' etc.). Default is c('fa', 'md').}
+\item{metrics}{A string object or vector of string objects containing the name (s) of the metric(s) to be estimated, in lower case. For QSIprep outputs, only the dti package's "dtiIndices/dkiIndices" metrics apply ("fa","ga","md","k1","k2","k3","mk","mk2","kaxial","kradial","fak"); for QSIrecon outputs, it can be any reconstruction output that has a \verb{*param-*_dwimap.nii.gz} suffix in MNI152 space (e.g., 'icvf', 'od' etc.). Default is c('fa', 'md').}
 
 \item{skeleton_fathreshold}{A numerical object with the Fractional Anisotropy (FA) threshold value to apply on the template FA skeleton (FMRIB58 2mm). Default is 0.2.}
 
@@ -46,7 +46,7 @@ qsi_extract(
 }
 \value{
 A list of 2D matrices, each matrix corresponding to one metric from
-\code{metrics}. Each element (skel_matrices$fa, skel_matrices$md, skel_matrices$ga, ...) is its own separate matrix: rows = subjects (and sessions), columns = voxels. Additionally, the list contains the coordinates of the skeleton voxels (skel_coords matrix), the skeleton template they are based on, and the FA threshold selected.
+\code{metrics}. Each element (skel_matrices$skel_fa, skel_matrices$skel_md, skel_matrices$skel_ga, ...) is its own separate matrix: rows = subjects (and sessions), columns = voxels. Additionally, the list contains the coordinates of the skeleton voxels (skel_coords matrix), the skeleton template they are based on, and the FA threshold selected.
 }
 \description{
 Extracts diffusion weighted imaging based metrics across a whole cohort datasets from QSIprep or QSIrecon pipeline outputs, masked into a common skeleton template, and merging them into single RDS files for each metric of interest.
@@ -55,4 +55,19 @@ Extracts diffusion weighted imaging based metrics across a whole cohort datasets
 For QSIprep output, the function makes use of tools from the \code{dti} R package to build a diffusion-weighted map and estimate DTI or DKI tensors. This requires bvec, bval and the dwi images to all be present in the subject directory. The map estimated from it is then coregistered to MNI 152 2mm space using the native ITK C++ backend and the ACPC-to-MNI152 transforms that QSIprep generates.
 For QSIrecon outputs, maps are already present in MNI 152 space, and the qsi_extract() function regrids MNI152 maps whenever their physical grid differs from the skeleton template.
 The FA skeleton is based on FSL's FMRIB58_FA-skeleton_1mm downsampled to 2mm.
+}
+\examples{
+\dontrun{
+metrics_skeletons=qsi_extract(inputdir='ds007090_qsiprep_output/',
+outputdir='ds007090_dti', 
+metrics=c('fa','md'),  
+dti_tensor='dtiTensor', 
+skeleton_fathreshold = 0.2,
+dti_sigma=NULL,
+dti_L=1, 
+nthread=4, 
+silent=FALSE,
+keep_maps = FALSE)
+}
+
 }

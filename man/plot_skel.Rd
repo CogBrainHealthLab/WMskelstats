@@ -20,3 +20,10 @@ A \code{\link[shiny]{shinyApp}} object representing the interactive application.
 Launches an interactive Shiny application to explore 3D spatial skeleton data,
 overlay values, and template backgrounds across 3D interactive plots and 2D cross-sectional slices.
 }
+\examples{
+if (interactive()) {
+demodata=dl_demo(quiet=TRUE)
+dti_data=readRDS(paste0(demodata,"/skel_fa_FMRIB58_skeleton_2mm_t0.2.rds"))
+plot_skel(dti_data$skel_coords, dti_data$skel_fa[1,])
+}
+}

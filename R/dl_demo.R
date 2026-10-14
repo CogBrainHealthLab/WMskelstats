@@ -6,7 +6,7 @@
 #' @return A string containing the path to the downloaded demo_data folder
 #' @examples
 #' dl_demo()
-#' @importFrom utils menu untar unzip vignette
+#' @importFrom utils menu untar unzip vignette download.file
 #' @export
 
 dl_demo=function(path=tempdir(), quiet=FALSE){
@@ -38,11 +38,11 @@ dl_demo=function(path=tempdir(), quiet=FALSE){
         # Download the file
         if (quiet==FALSE)
         {
-          download.file(url = raw_url, destfile = dest_path, mode = "wb")
+          utils::download.file(url = raw_url, destfile = dest_path, mode = "wb")
           cat("Downloaded:", file, "\n")
         } else
         {
-          download.file(url = raw_url, destfile = dest_path, mode = "wb",
+          utils::download.file(url = raw_url, destfile = dest_path, mode = "wb",
                         quiet = TRUE)
         }
         
