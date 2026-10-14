@@ -175,14 +175,6 @@ model_LM=LM_TFCE(model=beh_data[,c('age_months','sex')], #all model variables
 #cluster-wise threshold           
 model_thresh_LM=TFCE_threshold(model_LM, p=0.05,  k=20)
 ```
-
-The identified clusters and their coordinates are summarised in the model object:
-
-
-```{r}
-print(model_thresh_LM$cluster_level_results)
-```
-
 WMskelstats also has a linear mixed models function (`LME_TFCE()`) which is used in a similar way and allows the for addition of a random variable:
 
 ```{r}
@@ -198,17 +190,77 @@ model_LME=LME_TFCE(model=beh_data[,c('age_months','sex')],
 #to choose the cluster threshold value:
 model_thresh_LME=TFCE_threshold(model_LME, p=0.05,  k=20) 
 ```
-Clusters with the mixed models:
+The identified clusters and their coordinates are summarised in the model object:
 
 ```{r}
 print(model_thresh_LME$cluster_level_results)
 ```
+```{r eval=FALSE, include=TRUE}
+$`Positive contrast`
+   cluster_size max_value  x  y  z
+1          7645    6.2866 51 57 71
+2           970    6.1748 27 28 20
+3           351    4.1099 65 22 39
+4           310    8.6029 39 59 46
+5           234    4.8806 41 22 37
+6           180    4.2423 36 57 70
+7           167    4.4488 42 19 48
+8           119    3.0440 68 56 28
+9           116    3.0879 30 81 37
+10          110    4.0948 26 48 28
+11          106    3.6204 61 82 45
+12           94    2.8227 28 52 37
+13           71    4.1665 62 29 17
+14           70    4.9365 36 25 18
+15           60    3.4145 39 39 35
+16           50    5.6431 50 64 69
+17           49    4.2318 58 49 37
+18           49    4.2871 47 44 11
+19           48    2.8603 29 23 45
+20           45    3.5428 53 68 23
+21           36    2.4985 16 47 46
+22           29    3.0246 43 76 35
+23           28    3.1610 50 40 14
+24           27    1.7871 20 34 37
+25           26    1.2995 40 91 47
+26           26    0.9467 47 76 44
+27           25    3.8163 61 38 23
+28           22    3.1688 56 58 22
+29           21    2.2628 37 40 26
+30           20    3.3629 71 51 37
+31           20    3.5353 49 20 34
+
+$`Negative contrast`
+   cluster_size max_value  x  y  z
+1           102   -1.1393 24 39 41
+2           100   -1.7036 46 49 21
+3            97   -2.2873 59 62 25
+4            78   -4.5985 48 66 32
+5            69   -1.8039 54 84 37
+6            69   -0.8754 23 39 34
+7            60   -1.2677 34 84 52
+8            57   -2.4299 31 65 23
+9            47   -1.2184 37 38 49
+10           46   -1.3487 36 85 37
+11           40   -2.2959 40 74 25
+12           39   -1.4782 36 90 42
+13           38   -1.8875 29 41 23
+14           37   -4.3211 44 66 32
+15           35   -0.7518 23 44 46
+16           34   -1.2869 68 55 63
+17           26   -0.6935 54 50 62
+18           26   -1.5817 45 56 22
+19           23   -1.7186 41 89 29
+20           21   -0.3504 54 80 44
+21           21   -1.8087 61 45 22
+```
+
 ### Plotting
 
 The package provides an interactive viewer window (`skel_viewer()`) which allows viewing the skeleton's slices at each axis (axial, coronal, sagittal), as well as interactively visualising the data in 3D space. Below is an example screenshot with the significant clusters identified previously:
 
 ```{r, eval=FALSE}
-plot_skel(coords=dti_data$skel_coords,
+skel_viewer(coords=dti_data$skel_coords,
           data=model_thresh_LME$thresholded_tstat_map)
 ```
 
