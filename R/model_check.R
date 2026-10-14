@@ -127,7 +127,7 @@ model_check=function(contrast, model, random, vox_data,smooth_FWHM,coords)
   } else if(smooth_FWHM>0) 
   {
     message(paste("vox_data will be smoothed using a ",smooth_FWHM,"mm FWHM kernel", sep=""))
-    vox_data=smooth_vox(data_mat,coords, fwhm = smooth_FWHM, sigma = NULL, voxel_size = c(1, 1, 1))
+    vox_data=smooth_vox(vox_data, coords, fwhm = smooth_FWHM, sigma = NULL, voxel_size = c(1, 1, 1))
   }
   
   

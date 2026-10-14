@@ -20,7 +20,7 @@ dl_demo=function(path=tempdir(), quiet=FALSE){
   base_url <- "https://raw.githubusercontent.com/CogBrainHealthLab/WMskelstats/refs/heads/main/inst/demo_data/"
   
   files_to_download <- c(
-    "ds007090_behdata.tsv",
+    "ds007090_behdata.csv",
     "skel_fa_FMRIB58_skeleton_2mm_t0.2.rds",
     "skel_md_FMRIB58_skeleton_2mm_t0.2.rds")
   

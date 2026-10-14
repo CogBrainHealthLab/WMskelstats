@@ -1,14 +1,14 @@
 Package: WMskelstats
-Title: White Matter Analysis with Tract-Based Spatial Statistics in R
+Title: White Matter Analysis with Tract-Based Spatial Statistics
 Version: 0.0.1
-Date: 2026-08-27
+Date: 2026-10-12
 Authors@R: c(
     person("Junhong", "Yu", , "junhong.yu@ntu.edu.sg", role = "aut",
            comment = c(ORCID = "0000-0002-2563-9658")),
     person("Charly H. A.", "Billaud", , "charly.billaud@ntu.edu.sg", role = c("aut", "cre"), comment = c(ORCID = "0009-0001-3466-9963"))
   )
 Maintainer: Charly Billaud <charly.billaud@ntu.edu.sg>
-Description: 
+Description: Automatic extraction of white matter skeletons from QSIprep (Cieslak et al. (2021) <doi:10.1038/s41592-021-01185-5>) and QSIrecon (Cieslak et al. (2022) <doi:10.5281/zenodo.16903077>) output directories, with Tract-Based Spatial Statistics (TBSS, Smith et al. (2006) <doi:10.1016/j.neuroimage.2006.02.024>) and plotters. The package works with the aforementioned software's applicable metrics (such as metrics from diffusion tensor imaging, diffusion kurtosis imaging, Neurite Orientation Dispersion and Density Imaging). 
 License: GPL-3
 URL: 
 Suggests: 
@@ -19,7 +19,7 @@ Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
-SystemRequirements: 
+SystemRequirements: ANTs (>= 2.5.2)
 Depends: 
     R (>= 4.0.0)
 Imports:

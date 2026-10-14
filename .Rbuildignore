@@ -4,3 +4,4 @@
 ^inst/demo_data$
 ^docs$
 ^tools/qsi_native_build$
+^src/*.o

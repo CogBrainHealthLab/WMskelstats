@@ -22,6 +22,29 @@
 #'
 #' @returns A list object containing the t-stat and the TFCE statistical maps which can then be subsequently thresholded using TFCE_threshold()
 #' 
+#' @examples
+#' 
+#' \donttest{
+#' demodata=dl_demo(quiet=TRUE)
+#' #voxel-wise DTI data
+#' dti_data=readRDS(paste0(demodata,"/skel_fa_FMRIB58_skeleton_2mm_t0.2.rds"))
+#' skeleton=dti_data$skel_fa[grep('ses-1',row.names(dti_data$skel_fa)),]
+#' #behavioural data to match the dti data
+#' dat_beh=read.csv(paste0(demodata,"/ds007090_behdata.tsv"),sep='\t')
+#' dat_beh=dat_beh[which(dat_beh$participant_id %in% gsub('_ses-1','', row.names(skeleton))),]
+#' 
+#' model=lm_tfce(model=dat_beh[,c('age','sex')],
+#'               contrast=dat_beh[,'age'], 
+#'               vox_data=skeleton[grep('ses-1',row.names(skeleton)),], 
+#'               coords=dti_data$skel_coords, 
+#'               smooth_FWHM=2, 
+#'               nperm=1000, 
+#'               tail=2, 
+#'               nthread=4)
+#'               
+#' model_thresh=TFCE_threshold(model, p=0.05,  k=20)
+#'}
+#' 
 #' @useDynLib WMskelstats, .registration = TRUE
 #' @importFrom mori share
 #' @importFrom Rcpp evalCpp
@@ -33,6 +56,7 @@
 
 
 ##Main function
+
 LM_TFCE=function(model,contrast, formula, formula_dataset, vox_data, coords, smooth_FWHM, nperm=1000, tail=2, nthread=4)
 {
   #if the user chooses to use a formula, run the formula reader
@@ -46,6 +70,16 @@ LM_TFCE=function(model,contrast, formula, formula_dataset, vox_data, coords, smo
   {stop('The formula and the formula_dataset arguments must both be provided to work.')}
   
   
+  #run all checks for correct structure, recode variables when needed with
+  #model_check()
+  if (missing(smooth_FWHM)) {smooth_FWHM=NULL};
+  model_summary=WMskelstats:::model_check(model=model, contrast=contrast, smooth_FWHM=smooth_FWHM,coords=coords,random=NULL,
+                            vox_data=vox_data)
+  model=model_summary$model
+  contrast=model_summary$contrast
+  vox_data=model_summary$vox_data
+  colno=model_summary$colno
+  
   #check if any of vox_data columns contain all identical values
   vox.to.remove=which(apply(vox_data, 2, function(x) length(unique(x)) == 1))
   if(length(vox.to.remove)>=1) 
@@ -57,19 +91,8 @@ LM_TFCE=function(model,contrast, formula, formula_dataset, vox_data, coords, smo
     vox_data=vox_data[,-vox.to.remove]
     coords=coords[-vox.to.remove,]
   }
-  
-  #run all checks for correct structure, recode variables when needed with
-  #model_check()
-  if (missing(smooth_FWHM)) {smooth_FWHM=NULL};
-  model_summary=WMskelstats:::model_check(model=model, contrast=contrast, smooth_FWHM=smooth_FWHM,coords=coords,random=NULL,
-                            vox_data=vox_data)
-  model=model_summary$model
-  contrast=model_summary$contrast
-  vox_data=model_summary$vox_data
-  colno=model_summary$colno
-  
+
   ##unpermuted TFCE
-  
   start=Sys.time()
   message("Estimating unpermuted TFCE image...")
   ## Freedman–Lane preparation: fit the reduced nuisance model once
