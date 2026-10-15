@@ -69,3 +69,68 @@ lm_fast <- function(X, Y, block_size = 2048L, tol = 1e-12,
   }
   ans
 }
+
+
+###############################################################################
+#################################INVERSE TOOLS#################################
+
+
+#' Prepare voxel data for the inverse linear model
+#'
+#' Removes the nuisance covariates from every voxel once, so each permutation
+#' only needs to process the contrast variable. Voxels that are fully explained
+#' by the covariates (nothing left after adjustment) are set to zero, which
+#' gives them a t of 0.
+#'
+#' @param vox_data N x V numeric matrix of voxel-wise data (one row per
+#'   observation, one column per voxel).
+#' @param Z N x p numeric nuisance design including the intercept, i.e. the
+#'   model without the contrast of interest.
+#' @param tol Tolerance passed to qr() when checking that Z has full column rank.
+#' @return A list with Vunit (voxels adjusted for Z and scaled to unit length),
+#'   qr (the QR decomposition of Z), and df (residual degrees of freedom of the
+#'   full model, N minus p minus 1).
+#' @noRd
+lm_inverse_prep <- function(vox_data, Z, tol = 1e-12) {
+  Z <- as.matrix(Z); vox_data <- as.matrix(vox_data)
+  n <- nrow(Z)
+  qrZ <- qr(Z, tol = tol)
+  if (qrZ$rank < ncol(Z)) stop("Nuisance design is rank deficient.", call. = FALSE)
+  df <- n - ncol(Z) - 1L
+  if (df < 1L) stop("Not enough observations for the inverse model.", call. = FALSE)
+  
+  Vres <- qr.resid(qrZ, vox_data)
+  nrm  <- sqrt(colSums(Vres^2))
+  scl  <- pmax(1, sqrt(colSums(vox_data^2)))
+  bad  <- nrm <= sqrt(.Machine$double.eps) * scl   # voxel fully explained by Z
+  nrm[bad] <- 1
+  Vunit <- Vres / rep(nrm, each = n)
+  Vunit[, bad] <- 0
+  colnames(Vunit) <- colnames(vox_data)
+  list(Vunit = Vunit, qr = qrZ, df = df)
+}
+
+
+#' t statistics for voxel -> y, adjusting for Z (inverse linear model)
+#'
+#' Computes the t statistic of each voxel as a predictor of y, given the
+#' covariates in Z. This equals the partial correlation between y and the voxel
+#' converted to a t value, which is the same number an ordinary regression of
+#' y on Z and that voxel would give.
+#'
+#' @param prep Output of lm_inverse_prep().
+#' @param y Numeric vector of length N: the contrast variable, acting as the
+#'   outcome (the observed values, or a permuted version of them).
+#' @return Numeric vector of V t statistics, one per voxel, named after the
+#'   columns of vox_data. All zeros if y is fully explained by Z.
+#' @importFrom stats setNames
+#' @noRd
+lm_inverse_t <- function(prep, y) {
+  yr <- qr.resid(prep$qr, as.numeric(y))
+  ny <- sqrt(sum(yr^2))
+  V  <- ncol(prep$Vunit)
+  if (ny < sqrt(.Machine$double.eps)) return(stats::setNames(numeric(V), colnames(prep$Vunit)))
+  r <- drop(crossprod(prep$Vunit, yr)) / ny
+  r <- pmax(pmin(r, 1), -1)
+  r * sqrt(prep$df / pmax(1 - r^2, .Machine$double.eps))
+}

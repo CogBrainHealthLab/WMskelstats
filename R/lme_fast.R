@@ -146,3 +146,83 @@ lme_fast <- function(
   
   res
 }
+
+
+
+###############################################################################
+#################################INVERSE TOOLS#################################
+
+
+#' Prepare voxel data for the inverse mixed-effects model
+#'
+#' Precomputes everything that does not change between permutations: the voxel
+#' data, its per-subject means, the nuisance design and the subject coding.
+#'
+#' @param vox_data N x V numeric matrix of voxel-wise data (one row per
+#'   observation, one column per voxel).
+#' @param Z N x p numeric nuisance design including the intercept, i.e. the
+#'   model without the contrast of interest.
+#' @param id Vector of length N identifying the subject for each row. Rows with
+#'   the same id are repeated measures of the same subject.
+#' @return A list used by lme_inverse_t().
+#' @noRd
+#' 
+lme_inverse_prep <- function(vox_data, Z, id) {
+  vox_data <- as.matrix(vox_data); Z <- as.matrix(Z)
+  n <- nrow(Z)
+  if (length(id) != n) stop("length(id) must equal nrow(Z).", call. = FALSE)
+  gid <- match(id, unique(id))
+  ng  <- tabulate(gid)
+  df  <- n - ncol(Z) - 1L
+  if (df < 1L) stop("Not enough observations for the inverse model.", call. = FALSE)
+  list(V = vox_data,
+       Vmu = rowsum(vox_data, gid, reorder = TRUE) / ng,   # G x V group means
+       Z = Z, gid = gid, ng = ng, df = df)
+}
+
+
+#' t statistics for voxel -> y, adjusting for Z, with a random subject intercept
+#'
+#' @param prep Output of lme_inverse_prep().
+#' @param y Numeric vector of length N: the contrast variable, acting as the outcome.
+#' @param gamma Non-negative number: the ratio of between-subject variance to
+#'   residual variance for y, estimated beforehand with lme_fast(). 0 means
+#'   independent observations; larger values mean stronger within-subject similarity.
+#' @param block_size Number of voxels processed at a time (limits memory use).
+#' @return Numeric vector of V t statistics, one per voxel.
+#' @importFrom stats setNames
+#' @noRd
+lme_inverse_t <- function(prep, y, gamma, block_size = 5000L) {
+  gid <- prep$gid; ng <- prep$ng
+  kr  <- (1 - 1 / sqrt(1 + ng * gamma))[gid]      # per observation
+  
+  # T a = a - k_g * mean_g(a); T'T is proportional to V^-1 for V = I + gamma*K
+  tw <- function(a) {
+    a  <- as.matrix(a)
+    mu <- rowsum(a, gid, reorder = TRUE) / ng
+    a - kr * mu[gid, , drop = FALSE]
+  }
+  Zw  <- tw(prep$Z)
+  yw  <- tw(y)[, 1L]
+  qrZ <- qr(Zw)
+  if (qrZ$rank < ncol(Zw)) stop("Whitened nuisance design is rank deficient.", call. = FALSE)
+  yr <- qr.resid(qrZ, yw)
+  ny <- sqrt(sum(yr^2))
+  
+  V   <- ncol(prep$V)
+  out <- numeric(V)
+  if (ny >= sqrt(.Machine$double.eps)) {
+    for (s in seq.int(1L, V, by = block_size)) {
+      cols <- s:min(V, s + block_size - 1L)
+      Vw   <- prep$V[, cols, drop = FALSE] - kr * prep$Vmu[gid, cols, drop = FALSE]
+      Vr   <- qr.resid(qrZ, Vw)
+      nv   <- sqrt(colSums(Vr^2))
+      bad  <- nv <= sqrt(.Machine$double.eps) * pmax(1, sqrt(colSums(Vw^2)))
+      r    <- drop(crossprod(Vr, yr)) / (ifelse(bad, 1, nv) * ny)
+      r[bad] <- 0
+      r    <- pmax(pmin(r, 1), -1)
+      out[cols] <- r * sqrt(prep$df / pmax(1 - r^2, .Machine$double.eps))
+    }
+  }
+  stats::setNames(out, colnames(prep$V))
+}

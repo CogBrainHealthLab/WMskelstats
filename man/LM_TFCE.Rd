@@ -14,7 +14,8 @@ LM_TFCE(
   smooth_FWHM,
   nperm = 1000,
   tail = 2,
-  nthread = 4
+  nthread = 4,
+  inverse = FALSE
 )
 }
 \arguments{
@@ -37,11 +38,13 @@ LM_TFCE(
 
 \item{smooth_FWHM}{A numeric value specifying the desired smoothing width in mm. It should not be specified if the vox_data has been smoothed previously with smooth_vox(), because this results in vox_data being smoothed twice.}
 
-\item{nperm}{An integer specifying the number of permutations generated for the subsequent thresholding procedures (default = 100)}
+\item{nperm}{An integer specifying the number of permutations generated for the subsequent thresholding procedures (default = 1000)}
 
 \item{tail}{An integer specifying whether to test a one-sided positive (1), one-sided negative (-1) or two-sided (2) hypothesis}
 
 \item{nthread}{An integer specifying the number of CPU threads to allocate}
+
+\item{inverse}{A boolean object stating whether to treat vox_data as the dependent variable and the contrast variable as the predictor (FALSE), or the opposite (TRUE), i.e. the contrast is predicted by the vox_data. The model's control variables remain the same. Default is FALSE.}
 }
 \value{
 A list object containing the t-stat and the TFCE statistical maps which can then be subsequently thresholded using TFCE_threshold()

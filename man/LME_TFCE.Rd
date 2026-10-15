@@ -16,7 +16,8 @@ LME_TFCE(
   nperm = 1000,
   tail = 2,
   nthread = 4,
-  perm_type = "row"
+  perm_type = "row",
+  inverse = FALSE
 )
 }
 \arguments{
@@ -41,13 +42,15 @@ LME_TFCE(
 
 \item{smooth_FWHM}{A numeric value specifying the desired smoothing width in mm. It should not be specified if the vox_data has been smoothed previously with smooth_vox(), because this results in vox_data being smoothed twice.}
 
-\item{nperm}{An integer specifying the number of permutations generated for the subsequent thresholding procedures (default = 100)}
+\item{nperm}{An integer specifying the number of permutations generated for the subsequent thresholding procedures (default = 1000)}
 
 \item{tail}{An integer specifying whether to test a one-sided positive (1), one-sided negative (-1) or two-sided (2) hypothesis}
 
 \item{nthread}{An integer specifying the number of CPU threads to allocate}
 
 \item{perm_type}{A string object specifying whether to permute the rows ("row"), between subjects ("between"), within subjects ("within") or between and within subjects ("within_between") for random subject effects. Default is "row".}
+
+\item{inverse}{A boolean object stating whether to treat vox_data as the dependent variable and the contrast variable as the predictor (FALSE), or the opposite (TRUE), i.e. the contrast is predicted by the vox_data. The model's control variables remain the same. Default is FALSE. For mixed models, the contrast MUST vary within subjects (for example age across sessions); a variable constant within each subject cannot be modelled with a random intercept.}
 }
 \value{
 A list object containing the t-stat and the TFCE statistical maps which can then be subsequently thresholded using TFCE_threshold()
@@ -57,6 +60,7 @@ Fits a linear mixed effects model with the voxel-wise data as the predicted outc
 }
 \details{
 This TFCE method is adapted from the \href{https://github.com/nilearn/nilearn/blob/main/nilearn/mass_univariate/_utils.py#L7C8-L7C8}{'Nilearn' Python library}.
+In the interest of speed, when \code{inverse = TRUE}, a single random-intercept variance ratio (gamma) for the contrast is estimated from the model \code{contrast ~ covariates + (1|random)}, instead of one ratio per voxel. The single ratio is used to remove the within-subject dependence from the contrast and from every voxel before testing them all (done every permutation). It is an approximation, because each voxel's own contribution to the variance structure is ignored.
 }
 \examples{
 \donttest{

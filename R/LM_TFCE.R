@@ -16,9 +16,10 @@
 #' @param smooth_FWHM A numeric value specifying the desired smoothing width in mm. It should not be specified if the vox_data has been smoothed previously with smooth_vox(), because this results in vox_data being smoothed twice.
 #' @param vox_data A N x V matrix object containing the voxel-wse data (N row for each subject, V for each voxel)
 #' @param coords A V x 3 matrix, containing the X, Y and Z coordinates of the voxels used in `vox_data`.
-#' @param nperm An integer specifying the number of permutations generated for the subsequent thresholding procedures (default = 100)
+#' @param nperm An integer specifying the number of permutations generated for the subsequent thresholding procedures (default = 1000)
 #' @param tail An integer specifying whether to test a one-sided positive (1), one-sided negative (-1) or two-sided (2) hypothesis
-#' @param nthread An integer specifying the number of CPU threads to allocate 
+#' @param nthread An integer specifying the number of CPU threads to allocate
+#' @param inverse A boolean object stating whether to treat vox_data as the dependent variable and the contrast variable as the predictor (FALSE), or the opposite (TRUE), i.e. the contrast is predicted by the vox_data. The model's control variables remain the same. Default is FALSE.
 #'
 #' @returns A list object containing the t-stat and the TFCE statistical maps which can then be subsequently thresholded using TFCE_threshold()
 #' 
@@ -61,7 +62,7 @@
 
 ##Main function
 
-LM_TFCE=function(model,contrast, formula, formula_dataset, vox_data, coords, smooth_FWHM, nperm=1000, tail=2, nthread=4)
+LM_TFCE=function(model,contrast, formula, formula_dataset, vox_data, coords, smooth_FWHM, nperm=1000, tail=2, nthread=4, inverse=FALSE)
 {
   #if the user chooses to use a formula, run the formula reader
   #and output appropriate objects
@@ -84,6 +85,10 @@ LM_TFCE=function(model,contrast, formula, formula_dataset, vox_data, coords, smo
   vox_data=model_summary$vox_data
   colno=model_summary$colno
   
+  if (!is.logical(inverse) || length(inverse) != 1L || is.na(inverse)) {
+    stop("inverse must be TRUE or FALSE.")}
+  if (inverse==TRUE){message("Inverse model: contrast will be the dependent variable and vox_data its predictor.")}
+  
   #check if any of vox_data columns contain all identical values
   vox.to.remove=which(apply(vox_data, 2, function(x) length(unique(x)) == 1))
   if(length(vox.to.remove)>=1) 
@@ -100,28 +105,38 @@ LM_TFCE=function(model,contrast, formula, formula_dataset, vox_data, coords, smo
   start=Sys.time()
   message("Estimating unpermuted TFCE image...")
   ## Freedman–Lane preparation: fit the reduced nuisance model once
-  model = as.matrix(model)
-  n=NROW(model)
-  
+  model  = as.matrix(model)
+  n      = NROW(model)
   # Explicit intercept, including when the reduced model is intercept-only.
   # As in your original function, model should not already contain an intercept.
   X_full = cbind("(Intercept)" = 1, model)
   X_null = X_full[, -(colno + 1L), drop = FALSE]
+  model  = X_full
   
-  mod.null = lm_fast(Y = vox_data,X = X_null,return_coefficients = TRUE)
+  #visible binding for inverse-related variables
+  . <- fitted_null <- residuals_null <- Vunit <- y_fit <- y_res <- qr_null <- df_inv <- NULL
   
-  # Fixed-effects predictions ONLY: do not add fitted random intercepts.
-  fitted_null = X_null %*% mod.null$coefficients
   
-  # Marginal residuals retain participant-level variation.
-  residuals_null = vox_data - fitted_null
-  
-  model = X_full
-  
-  mod=lm_fast(Y = vox_data,X = model,return_coefficients = FALSE)
+  if (!inverse) {
+    mod.null       = lm_fast(Y = vox_data, X = X_null, return_coefficients = TRUE)
+    # Fixed-effects predictions ONLY: do not add fitted random intercepts.
+    fitted_null    = X_null %*% mod.null$coefficients
+    # Marginal residuals retain participant-level variation.
+    residuals_null = vox_data - fitted_null
+    t_obs          = lm_fast(Y = vox_data, X = model)[colno + 1, ]
+    rm(mod.null)
+  } else {
+    y       = X_full[, colno + 1L]
+    #Inverse Y DV and main X contrast IV
+    prep    = lm_inverse_prep(vox_data, X_null)
+    t_obs   = lm_inverse_t(prep, y)
+    Vunit   = prep$Vunit; qr_null = prep$qr; df_inv = prep$df
+    y_fit   = qr.fitted(qr_null, y)
+    y_res   = y - y_fit
+  }
   
   # Calculate one height step for the entire analysis.
-  t_finite = mod[colno + 1, ][is.finite(mod[colno + 1, ])]
+  t_finite = t_obs[is.finite(t_obs)]
   
   if (!length(t_finite)) {
     stop("The observed t-statistic map contains no finite values.")
@@ -138,11 +153,7 @@ LM_TFCE=function(model,contrast, formula, formula_dataset, vox_data, coords, smo
   # A positive fallback is needed if the relevant observed map is all zero.
   dh_fixed = if (peak > 0) peak / 100 else 0.1
   
-  
-  TFCE.orig=calc_tfce_3d(df_to_vol(coords,mod[colno + 1, ]), tail=tail,dh = dh_fixed)
-  
-  
-  
+  TFCE.orig = calc_tfce_3d(df_to_vol(coords, t_obs), tail = tail, dh = dh_fixed)
   
   end=Sys.time()
   
@@ -151,14 +162,16 @@ LM_TFCE=function(model,contrast, formula, formula_dataset, vox_data, coords, smo
   ##permuted model
 
   # 1. Convert large datasets to shared memory objects
-  fitted_null_shm = mori::share(fitted_null)
-  residuals_null_shm = mori::share(residuals_null)
-  n_shm = mori::share(n)
+  fitted_null_shm    = if (!inverse) mori::share(fitted_null)    else NULL
+  residuals_null_shm = if (!inverse) mori::share(residuals_null) else NULL
+  Vunit_shm          = if (inverse)  mori::share(Vunit)          else NULL
+  n_shm              = mori::share(n)
   
-  rm(fitted_null, residuals_null, mod.null)
+  rm(fitted_null, residuals_null, Vunit)
   
   # 2. Initialize cluster and attach single backend (doSNOW)
   cl=parallel::makeCluster(nthread)
+  on.exit(parallel::stopCluster(cl), add = TRUE)
   `%dopar%` = foreach::`%dopar%`
   doSNOW::registerDoSNOW(cl)
   
@@ -172,10 +185,9 @@ LM_TFCE=function(model,contrast, formula, formula_dataset, vox_data, coords, smo
   parallel::clusterExport(
     cl,
     varlist = c(
-      "fitted_null_shm",
-      "residuals_null_shm",
-      "n_shm",
-      "model", "coords", "colno", "tail"
+      "fitted_null_shm", "residuals_null_shm", "Vunit_shm",
+      "y_fit", "y_res", "qr_null", "df_inv",
+      "n_shm", "model", "coords", "colno", "tail", "inverse"
     ),
     envir = environment()
   )
@@ -193,7 +205,7 @@ LM_TFCE=function(model,contrast, formula, formula_dataset, vox_data, coords, smo
     perm = seq_len(nperm),
     .combine = "c",
     .packages = c("WMskelstats", "mori"),
-    .noexport = c("vox_data", "permseq","fitted_null_shm", "n_shm","residuals_null_shm","model", "coords", "colno", "tail"),
+    .noexport = c("vox_data", "permseq","fitted_null_shm", "n_shm","residuals_null_shm","model", "coords", "colno", "tail", "Vunit_shm", "y_fit", "y_res", "qr_null", "df_inv", "inverse"),
     .options.snow = opts,
     .errorhandling = "stop"
   ) %dopar% {
@@ -202,14 +214,17 @@ LM_TFCE=function(model,contrast, formula, formula_dataset, vox_data, coords, smo
     
     # Freedman–Lane: permute reduced-model marginal residuals,
     # then restore the original fixed nuisance effects.
-    vox_data_perm = fitted_null_shm +residuals_null_shm[perm_idx, , drop = FALSE]
+    if (inverse) {
+      t_perm = lm_inverse_t(list(Vunit = Vunit_shm, qr = qr_null, df = df_inv),
+                            y_fit + y_res[perm_idx])
+    } else {
+      vox_data_perm = fitted_null_shm + residuals_null_shm[perm_idx, , drop = FALSE]
+      t_perm = lm_fast(Y = vox_data_perm, X = model, return_coefficients = FALSE)[colno + 1, ]
+    }
     
-    mod.perm = lm_fast(Y = vox_data_perm,X = model,return_coefficients = FALSE)
-    
-    vol_stat = df_to_vol(coords, mod.perm[colno + 1, ])
-    tfce_perm = calc_tfce_3d(vol_stat, tail = tail,dh = dh_fixed)
-    
-    values = as.numeric(tfce_perm[coords])
+    vol_stat  = df_to_vol(coords, t_perm)
+    tfce_perm = calc_tfce_3d(vol_stat, tail = tail, dh = dh_fixed)
+    values    = as.numeric(tfce_perm[coords])
     
     if (any(!is.finite(values))) {
       stop("Nonfinite TFCE statistics in permutation ", perm)
@@ -222,17 +237,14 @@ LM_TFCE=function(model,contrast, formula, formula_dataset, vox_data, coords, smo
   
   message(sprintf("\nCompleted in %.1f minutes \n", difftime(end, start, units = "mins")))
   
-  parallel::stopCluster(cl)
-
-  
   ##saving list objects
   if(length(vox.to.remove)>=1) 
   {
-  returnobj=list(mod[colno + 1, ],vol_to_df(TFCE.orig), TFCE.max,tail,coords,vox.to.remove)
+  returnobj=list(t_obs,vol_to_df(TFCE.orig), TFCE.max,tail,coords,vox.to.remove)
   names(returnobj)=c("t_stat","TFCE.orig","TFCE.max","tail","coords","removed_voxels")
   } else
   {
-    returnobj=list(mod[colno + 1, ],vol_to_df(TFCE.orig), TFCE.max,tail,coords)
+    returnobj=list(t_obs,vol_to_df(TFCE.orig), TFCE.max,tail,coords)
     names(returnobj)=c("t_stat","TFCE.orig","TFCE.max","tail","coords")
   }
   return(returnobj)
