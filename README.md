@@ -34,7 +34,7 @@ Note, any version of R<4.5.0 will not work.
 
 Install `WMskelstats` (development branch) within this R session:
 ```
-remotes::install_github("cogbrainhealthlab/WMskelstats@development")
+remotes::install_github("cogbrainhealthlab/WMskelstats")
 ```
 ### To do (03/10/2026)
 - need to compare output data with those generated using `rpyANTs` (main branch version of the package). I could not get `rpyANTs` to work on NTU HPC. I suppose they should be identical since we are using the pre-installed ANTs binary instead a custom-made ANTs replacement function.
@@ -61,8 +61,6 @@ WMskelstats's main steps are:
 All of these steps are done on automatically from all subjects from a given QSIprep output directory (or QSIrecon derivatives/[] subdirectory), and the whole cohort metric data is stored in the same skeleton-space within a single cohort-wide R matrix. This R matrix can then be analysed with voxel-wise analyses, including linear models and linear mixed models, with threshold-free cluster enhancement.
 
 ## Demonstration
-
-***/!\\ only a placeholder at the moment, another dataset will be used /!\\***
 
 For this demonstration, we use data from the Penn LEAD (Penn Longitudinal Executive functioning in Adolescent Development) public dataset, already preprocessed using QSIPrep, from the [OpenNeuro platform (ds007090, 1.0.4)](https://openneuro.org/datasets/ds007090/versions/1.0.4).
 
@@ -139,13 +137,149 @@ At the end of the process, two R objects are generated: skel_fa_FMRIB58_skeleton
 For the sake of the demo, we already provide two extracted .rds files. They can be downloaded (\~62 MB total) from the Github directory to a desired destinations using the following function:
 
 ```{r}
-dl_demo(path=tempdir(), #R's temporary directory 
-        quiet=TRUE)
+demodata=dl_demo(path=tempdir(), #R's temporary directory 
+                 quiet=TRUE)
 ```
 
-We load the behavioural data to select variables for our models:
+Here, we run the skeleton data outputted by qsi_extract() for the FA data of the cohort. 
 
 ```{r}
-beh_data=read.tsv(paste0(tempdir(),"/ds007090_behdata.tsv"), sep="\t")
+dti_data=readRDS(paste0(demodata,"/skel_fa_FMRIB58_skeleton_2mm_t0.2.rds"))
+skeleton=dti_data$skel_fa
 ```
 
+We load the behavioural data to select variables for our models, and select participant with matching IDs and sessions to that of the data matrix's row names:
+
+```{r}
+beh_data=read.csv(paste0(demodata,"/ds007090_behdata.csv"))
+beh_data=beh_data[order(beh_data$participant_id),]
+
+#We match the row names (e.g., "sub-0001_ses-1"", "sub-0002_ses-2"") in the matrix:
+beh_data$id_ses=paste0(beh_data$participant_id, '_', beh_data$session_id)
+beh_data=beh_data[which(beh_data$id_ses %in% row.names(skeleton)),]
+
+```
+
+In this example, we test the effect of age on FA, controlling for sex, with a simple linear model with the `LM_TFCE()` function. The function identifies voxel-wise clusters in the white matter skeleton via threshold-free cluster enhancement (TFCE) correction significant at cluster-wise p < .05:
+
+```{r}
+model_LM=LM_TFCE(model=beh_data[,c('age_months','sex')], #all model variables
+              contrast=beh_data[,'age_months'], #main predictor of interest
+              vox_data=skeleton[row.names(skeleton),], 
+              coords=dti_data$skel_coords,
+              smooth_FWHM=5, #full-width at half-maximum smoothing kernel
+              nperm=1000,  #number of permutations
+              tail=2,    #two-tailed effect
+              nthread=2) #number of CPU threads to use
+
+#cluster-wise threshold           
+model_thresh_LM=TFCE_threshold(model_LM, p=0.05,  k=20)
+```
+WMskelstats also has a linear mixed models function (`LME_TFCE()`) which is used in a similar way and allows the for addition of a random variable:
+
+```{r}
+model_LME=LME_TFCE(model=beh_data[,c('age_months','sex')],
+               contrast=beh_data[,'age_months'], 
+               random=beh_data[,'participant_id'],
+               vox_data=skeleton[row.names(skeleton),], 
+               coords=dti_data$skel_coords, 
+               smooth_FWHM=5, 
+               nperm=1000, 
+               tail=2, 
+               nthread=2)
+#to choose the cluster threshold value:
+model_thresh_LME=TFCE_threshold(model_LME, p=0.05,  k=20) 
+```
+The identified clusters and their coordinates are summarised in the model object:
+
+```{r}
+print(model_thresh_LME$cluster_level_results)
+```
+```{r eval=FALSE, include=TRUE}
+$`Positive contrast`
+   cluster_size max_value  x  y  z
+1          7645    6.2866 51 57 71
+2           970    6.1748 27 28 20
+3           351    4.1099 65 22 39
+4           310    8.6029 39 59 46
+5           234    4.8806 41 22 37
+6           180    4.2423 36 57 70
+7           167    4.4488 42 19 48
+8           119    3.0440 68 56 28
+9           116    3.0879 30 81 37
+10          110    4.0948 26 48 28
+11          106    3.6204 61 82 45
+12           94    2.8227 28 52 37
+13           71    4.1665 62 29 17
+14           70    4.9365 36 25 18
+15           60    3.4145 39 39 35
+16           50    5.6431 50 64 69
+17           49    4.2318 58 49 37
+18           49    4.2871 47 44 11
+19           48    2.8603 29 23 45
+20           45    3.5428 53 68 23
+21           36    2.4985 16 47 46
+22           29    3.0246 43 76 35
+23           28    3.1610 50 40 14
+24           27    1.7871 20 34 37
+25           26    1.2995 40 91 47
+26           26    0.9467 47 76 44
+27           25    3.8163 61 38 23
+28           22    3.1688 56 58 22
+29           21    2.2628 37 40 26
+30           20    3.3629 71 51 37
+31           20    3.5353 49 20 34
+
+$`Negative contrast`
+   cluster_size max_value  x  y  z
+1           102   -1.1393 24 39 41
+2           100   -1.7036 46 49 21
+3            97   -2.2873 59 62 25
+4            78   -4.5985 48 66 32
+5            69   -1.8039 54 84 37
+6            69   -0.8754 23 39 34
+7            60   -1.2677 34 84 52
+8            57   -2.4299 31 65 23
+9            47   -1.2184 37 38 49
+10           46   -1.3487 36 85 37
+11           40   -2.2959 40 74 25
+12           39   -1.4782 36 90 42
+13           38   -1.8875 29 41 23
+14           37   -4.3211 44 66 32
+15           35   -0.7518 23 44 46
+16           34   -1.2869 68 55 63
+17           26   -0.6935 54 50 62
+18           26   -1.5817 45 56 22
+19           23   -1.7186 41 89 29
+20           21   -0.3504 54 80 44
+21           21   -1.8087 61 45 22
+```
+
+### Plotting
+
+The package provides an interactive viewer window (`skel_viewer()`) which allows viewing the skeleton's slices at each axis (axial, coronal, sagittal), as well as interactively visualising the data in 3D space. Below is an example screenshot with the significant clusters identified previously:
+
+```{r, eval=FALSE}
+skel_viewer(coords=dti_data$skel_coords,
+          data=model_thresh_LME$thresholded_tstat_map)
+```
+
+![Significant clusters plotted via skel_viewer](man/figures/skel_viewer.jpg)
+
+A static 2D plot can also be created with `plot_lightbox()` which lets users define the exact slices they wish to plot, in a grid-like manner:
+
+```{r}
+plot_lightbox(z_slices=c(20, 30, 40, 50),
+              vox_data=model_thresh_LME$thresholded_tstat_map, 
+              coords=dti_data$skel_coords,
+              pointsize=1, 
+              strip_fontsize=10,
+              strip_margin=5,
+              cmap="coolwarm", 
+              colorscale_title="t-stat (TFCE thresholded)",
+              dark_mode=TRUE, #black background instead of white
+              nrow=2, #number of rows on the grid
+              na_color="#7F7F7F")
+```
+
+![Significant clusters plotted via plot_lightbox](man/figures/plot_lightbox.jpg)

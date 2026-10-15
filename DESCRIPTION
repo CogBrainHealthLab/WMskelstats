@@ -28,6 +28,7 @@ Imports:
     doParallel,
     doSNOW,
     foreach,
+    methods,
     mori,
     mmand,
     ggplot2,	
@@ -37,7 +38,9 @@ Imports:
     magrittr,
     Rcpp (>= 1.0.0),
     RNifti,
-    stringr
+    stats,
+    stringr,
+    utils
 LinkingTo: 
     Rcpp,
     RcppArmadillo

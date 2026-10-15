@@ -24,6 +24,32 @@
 #'
 #' @returns A list object containing the t-stat and the TFCE statistical maps which can then be subsequently thresholded using TFCE_threshold()
 #' 
+#' @examples
+#' \donttest{
+#' demodata=dl_demo(quiet=TRUE)
+#' #voxel-wise DTI data
+#' dti_data=readRDS(paste0(demodata,"/skel_fa_FMRIB58_skeleton_2mm_t0.2.rds"))
+#' skeleton=dti_data$skel_fa
+#' 
+#' #behavioural data to match the dti data
+#' dat_beh=read.csv(paste0(demodata,"/ds007090_behdata.csv"))
+#' dat_beh$id_ses=paste0(dat_beh$participant_id, '_', dat_beh$session_id)
+#' dat_beh=dat_beh[which(dat_beh$id_ses %in% row.names(skeleton)),]
+#' dat_beh=dat_beh[order(dat_beh$participant_id),]
+#' 
+#' model=LME_TFCE(model=dat_beh[,c('age_months','sex')],
+#'                contrast=dat_beh[,'age_months'], 
+#'                random=dat_beh[,'participant_id'],
+#'                vox_data=skeleton[row.names(skeleton),], 
+#'                coords=dti_data$skel_coords, 
+#'                smooth_FWHM=5, 
+#'                nperm=100, 
+#'                tail=2, 
+#'                nthread=2)
+#' model_thresh=TFCE_threshold(model, p=0.05,  k=20)
+#' model_thresh$cluster_level_results
+#' }
+#' 
 #' @useDynLib WMskelstats, .registration = TRUE
 #' @importFrom mori share
 #' @importFrom Rcpp evalCpp
@@ -31,6 +57,7 @@
 #' @importFrom parallel makeCluster stopCluster
 #' @importFrom doParallel registerDoParallel
 #' @importFrom doSNOW registerDoSNOW
+#' @importFrom utils setTxtProgressBar txtProgressBar
 #' @export
 
 
@@ -50,18 +77,6 @@ LME_TFCE=function(model,contrast, random, formula, formula_dataset, vox_data, co
   } else if ((missing(formula) & !missing(formula_dataset)) | (!missing(formula) & missing(formula_dataset)))
   {stop('The formula and the formula_dataset arguments must both be provided to work.')}
   
-  #check if any of vox_data columns contain all identical values
-  vox.to.remove=which(apply(vox_data, 2, function(x) length(unique(x)) == 1))
-  if(length(vox.to.remove)>=1) 
-  {
-    warning(paste0("\n vox_data contains ",length(vox.to.remove),
-                   " column(s) with only one unique value. 
-                   The affected column(s) in vox_data and their corresponding row(s) in coords will be removed from the analyses. 
-                   The indices of these removed voxels are saved as $removed_voxels"))
-    vox_data=vox_data[,-vox.to.remove]
-    coords=coords[-vox.to.remove,]
-  }
-  
   #run all checks for correct structure, recode variables when needed with
   #model_check()
   if (missing(random)) {stop('The random argument must be provided')};
@@ -74,9 +89,20 @@ LME_TFCE=function(model,contrast, random, formula, formula_dataset, vox_data, co
   colno=model_summary$colno
 
   if (!is.null(model_summary$random)) {random=model_summary$random}
-  
+
+  #check if any of vox_data columns contain all identical values
+  vox.to.remove=which(apply(vox_data, 2, function(x) length(unique(x)) == 1))
+  if(length(vox.to.remove)>=1) 
+  {
+    warning(paste0("\n vox_data contains ",length(vox.to.remove),
+                   " column(s) with only one unique value. 
+                   The affected column(s) in vox_data and their corresponding row(s) in coords will be removed from the analyses. 
+                   The indices of these removed voxels are saved as $removed_voxels"))
+    vox_data=vox_data[,-vox.to.remove]
+    coords=coords[-vox.to.remove,]
+  }
+
   ##unpermuted TFCE
-  
   start=Sys.time()
   message("Estimating unpermuted TFCE image...")
   ## Freedman–Lane preparation: fit the reduced nuisance model once
@@ -124,7 +150,7 @@ LME_TFCE=function(model,contrast, random, formula, formula_dataset, vox_data, co
   dh_fixed = if (peak > 0) peak / 100 else 0.1
   
   TFCE.orig = calc_tfce_3d(
-    WMskelstats:::df_to_vol(coords, t_orig),
+    df_to_vol(coords, t_orig),
     dh = dh_fixed,
     tail = tail
   )
@@ -172,8 +198,8 @@ LME_TFCE=function(model,contrast, random, formula, formula_dataset, vox_data, co
   )
   
   # Progress bar setup
-  pb=txtProgressBar(max = nperm, style = 3)
-  opts=list(progress = function(n) setTxtProgressBar(pb, n))
+  pb=utils::txtProgressBar(max = nperm, style = 3)
+  opts=list(progress = function(n) utils::setTxtProgressBar(pb, n))
   
   # 4. Execute parallel loop using shared memory handles
   start=Sys.time()
@@ -210,7 +236,7 @@ LME_TFCE=function(model,contrast, random, formula, formula_dataset, vox_data, co
       stop("Nonfinite t-statistics in permutation ", perm)
     }
     
-    vol_stat = WMskelstats:::df_to_vol(coords, t_perm)
+    vol_stat = df_to_vol(coords, t_perm)
     
     max(
       abs(calc_tfce_3d(vol_stat, dh = dh_fixed, tail = tail)),

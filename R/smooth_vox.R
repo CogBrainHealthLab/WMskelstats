@@ -7,6 +7,15 @@
 #' @param voxel_size Voxel dimension in mm (scalar or length-3 vector). Default is c(1, 1, 1).
 #'
 #' @return A smoothed N x V matrix.
+#' 
+#' @examples
+#' demodata=dl_demo(quiet=TRUE)
+#' #voxel-wise DTI data
+#' dti_data=readRDS(paste0(demodata,"/skel_fa_FMRIB58_skeleton_2mm_t0.2.rds"))
+#' skeleton=dti_data$skel_fa
+#' #smooth
+#' skeleton_smoothed=smooth_vox(skeleton, dti_data$skel_coords, fwhm=5)
+#'
 #' @useDynLib WMskelstats, .registration = TRUE
 #' @importFrom Rcpp sourceCpp
 #' @export

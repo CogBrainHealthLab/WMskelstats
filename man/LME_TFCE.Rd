@@ -58,3 +58,30 @@ Fits a linear mixed effects model with the voxel-wise data as the predicted outc
 \details{
 This TFCE method is adapted from the \href{https://github.com/nilearn/nilearn/blob/main/nilearn/mass_univariate/_utils.py#L7C8-L7C8}{'Nilearn' Python library}.
 }
+\examples{
+\donttest{
+demodata=dl_demo(quiet=TRUE)
+#voxel-wise DTI data
+dti_data=readRDS(paste0(demodata,"/skel_fa_FMRIB58_skeleton_2mm_t0.2.rds"))
+skeleton=dti_data$skel_fa
+
+#behavioural data to match the dti data
+dat_beh=read.csv(paste0(demodata,"/ds007090_behdata.csv"))
+dat_beh$id_ses=paste0(dat_beh$participant_id, '_', dat_beh$session_id)
+dat_beh=dat_beh[which(dat_beh$id_ses \%in\% row.names(skeleton)),]
+dat_beh=dat_beh[order(dat_beh$participant_id),]
+
+model=LME_TFCE(model=dat_beh[,c('age_months','sex')],
+               contrast=dat_beh[,'age_months'], 
+               random=dat_beh[,'participant_id'],
+               vox_data=skeleton[row.names(skeleton),], 
+               coords=dti_data$skel_coords, 
+               smooth_FWHM=5, 
+               nperm=100, 
+               tail=2, 
+               nthread=2)
+model_thresh=TFCE_threshold(model, p=0.05,  k=20)
+model_thresh$cluster_level_results
+}
+
+}

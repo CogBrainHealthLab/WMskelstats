@@ -2,6 +2,7 @@
 #' @title Model structure check
 #' @description Ensures the voxel data, contrast, model and/or random objects in the analyses have the appropriate structures to enable vertex analyses to be run properly on the given variables.
 #' @returns An error message if an issue or discrepancy is found.
+#' @importFrom stats complete.cases
 #' @noRd
 
 model_check=function(contrast, model, random, vox_data,smooth_FWHM,coords)
@@ -66,7 +67,7 @@ model_check=function(contrast, model, random, vox_data,smooth_FWHM,coords)
   }
   
   #incomplete data check
-  idxF=which(complete.cases(model)==FALSE)
+  idxF=which(stats::complete.cases(model)==FALSE)
   if(length(idxF)>0)
   {
     message(paste("The model contains",length(idxF),"subjects with incomplete data. Subjects with incomplete data will be excluded from the current analysis\n"))

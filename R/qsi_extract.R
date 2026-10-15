@@ -1,27 +1,44 @@
 #' @title QSI diffusion-weighted imaging metrics extractor
 #'
 #' @description Extracts diffusion weighted imaging based metrics across a whole cohort datasets from QSIprep or QSIrecon pipeline outputs, masked into a common skeleton template, and merging them into single RDS files for each metric of interest.
+#' 
 #' @details For QSIprep output, the function makes use of tools from the `dti` R package to build a diffusion-weighted map and estimate DTI or DKI tensors. This requires bvec, bval and the dwi images to all be present in the subject directory. The map estimated from it is then coregistered to MNI 152 2mm space using the native ITK C++ backend and the ACPC-to-MNI152 transforms that QSIprep generates. 
 #' For QSIrecon outputs, maps are already present in MNI 152 space, and the qsi_extract() function regrids MNI152 maps whenever their physical grid differs from the skeleton template. 
 #' The FA skeleton is based on FSL's FMRIB58_FA-skeleton_1mm downsampled to 2mm.
 #' @param inputdir A string object containing the path to the QSIprep or QSIrecon output dataset. For QSIrecon, specify "derivatives/qsirecon-*/" instead of the parent directory, as some files have identical suffixes and cannot be disentangled across reconstructions.
 #' @param outputdir A string object containing the path of the directory where the final cohort-wise RDS will be stored for each metric (as well as metrics maps if `keep_maps` is set as TRUE). Default is 'cohort_skeletons' in the R temporary directory (tempdir()).
-#'@param metrics A string object or vector of string objects containing the name (s) of the metric(s) to be estimated, in lower case. For QSIprep outputs, only the dti package's "dtiIndices/dkiIndices" metrics apply ("fa","ga","md","k1","k2","k3","mk","mk2","kaxial","kradial","fak"); for QSIrecon outputs, it can be any reconstruction output that has a "*param-\*_dwimap.nii.gz" suffix in MNI152 space (e.g., 'icvf', 'od' etc.). Default is c('fa', 'md').
-#'@param skeleton_fathreshold A numerical object with the Fractional Anisotropy (FA) threshold value to apply on the template FA skeleton (FMRIB58 2mm). Default is 0.2.
-#'@param dti_tensor A string object stating the tensor to be used for applicable metrics estimation ('dtiTensor' or 'dkiTensor'). Default is dtiTensor. Argument ignored for QSIrecon output.
-#'@param dti_method A string object containing the method to be used for tensor-based estimations. If `dti_tensor` is 'dtiTensor', options include "nonlinear", "linear" (default), "quasi-likelihood"; if `dti_tensor` is 'dkiTensor', options include "CLLS-QP" (default), "CLLS-H", "ULLS", "QL", "NLR". Argument ignored for QSIrecon output.
-#'@param dti_sigma An integer specifying the sigma value (scale parameter of the signal's distribution) to be used as part of the tensor estimation. Default is NULL. Argument ignored for QSIrecon output. 
-#'@param dti_L An integer specifying the effective degrees of freedom for the tensor estimation. Default is 1.  Argument ignored for QSIrecon output.
-#'@param nthread Number of CPU threads for tensor estimation and ITK work units for image resampling.
-#'@param keep_maps A logical object to determine whether files such as estimated tensor maps and coregistered maps are to be written in the `outputdir`. Default is FALSE.
-#'@param qsiprep_path A string containing the path to the QSIprep output (Optional). Ignored if inputdir and qsiprep_path are the same. Its purpose is for QSIrecon processing to retrieve ACPC-to-MNI152 transformation matrices if MNI152 coregistration was not done by QSIrecon. The QSIprep folder must have the same subjects and sessions as the the QSIrecon output.
-#'@param silent A logical object to determine whether messages will be silenced. Default is FALSE.
+#' @param metrics A string object or vector of string objects containing the name (s) of the metric(s) to be estimated, in lower case. For QSIprep outputs, only the dti package's "dtiIndices/dkiIndices" metrics apply ("fa","ga","md","k1","k2","k3","mk","mk2","kaxial","kradial","fak"); for QSIrecon outputs, it can be any reconstruction output that has a `*param-*_dwimap.nii.gz` suffix in MNI152 space (e.g., 'icvf', 'od' etc.). Default is c('fa', 'md').
+#' @param skeleton_fathreshold A numerical object with the Fractional Anisotropy (FA) threshold value to apply on the template FA skeleton (FMRIB58 2mm). Default is 0.2.
+#' @param dti_tensor A string object stating the tensor to be used for applicable metrics estimation ('dtiTensor' or 'dkiTensor'). Default is dtiTensor. Argument ignored for QSIrecon output.
+#' @param dti_method A string object containing the method to be used for tensor-based estimations. If `dti_tensor` is 'dtiTensor', options include "nonlinear", "linear" (default), "quasi-likelihood"; if `dti_tensor` is 'dkiTensor', options include "CLLS-QP" (default), "CLLS-H", "ULLS", "QL", "NLR". Argument ignored for QSIrecon output.
+#' @param dti_sigma An integer specifying the sigma value (scale parameter of the signal's distribution) to be used as part of the tensor estimation. Default is NULL. Argument ignored for QSIrecon output. 
+#' @param dti_L An integer specifying the effective degrees of freedom for the tensor estimation. Default is 1.  Argument ignored for QSIrecon output.
+#' @param nthread Number of CPU threads for tensor estimation and ITK work units for image resampling.
+#' @param keep_maps A logical object to determine whether files such as estimated tensor maps and coregistered maps are to be written in the `outputdir`. Default is FALSE.
+#' @param qsiprep_path A string containing the path to the QSIprep output (Optional). Ignored if inputdir and qsiprep_path are the same. Its purpose is for QSIrecon processing to retrieve ACPC-to-MNI152 transformation matrices if MNI152 coregistration was not done by QSIrecon. The QSIprep folder must have the same subjects and sessions as the the QSIrecon output.
+#' @param silent A logical object to determine whether messages will be silenced. Default is FALSE.
 #'
 #' @returns A list of 2D matrices, each matrix corresponding to one metric from 
-#' `metrics`. Each element (skel_matrices$fa, skel_matrices$md, skel_matrices$ga, ...) is its own separate matrix: rows = subjects (and sessions), columns = voxels. Additionally, the list contains the coordinates of the skeleton voxels (skel_coords matrix), the skeleton template they are based on, and the FA threshold selected. 
+#' `metrics`. Each element (skel_matrices$skel_fa, skel_matrices$skel_md, skel_matrices$skel_ga, ...) is its own separate matrix: rows = subjects (and sessions), columns = voxels. Additionally, the list contains the coordinates of the skeleton voxels (skel_coords matrix), the skeleton template they are based on, and the FA threshold selected. 
+#' 
+#' @examples
+#' \dontrun{
+#' metrics_skeletons=qsi_extract(inputdir='ds007090_qsiprep_output/',
+#' outputdir='ds007090_dti', 
+#' metrics=c('fa','md'),  
+#' dti_tensor='dtiTensor', 
+#' skeleton_fathreshold = 0.2,
+#' dti_sigma=NULL,
+#' dti_L=1, 
+#' nthread=4, 
+#' silent=FALSE,
+#' keep_maps = FALSE)
+#' }
 #' 
 #' @importFrom dti readDWIdata dtiTensor dkiTensor dtiIndices dkiIndices setmask
 #' @importFrom RNifti asNifti readNifti writeNifti pixdim
+#' @importFrom stats setNames 
+#' @importFrom methods slot slotNames
 #' @export 
 
 qsi_extract=function(inputdir,
@@ -82,7 +99,7 @@ qsi_extract=function(inputdir,
   if (exists('dkiTensorobj', inherits = FALSE)) { remove(dkiTensorobj) }
   
   #prepare grand skeleton list (will contain cohort matrices for each metrics) 
-  skel_list <- setNames(vector("list", length(metrics)),
+  skel_list <- stats::setNames(vector("list", length(metrics)),
                           paste0("skel_", metrics))
     
   # Discover subject directories, then keep every session's files separate.
@@ -191,13 +208,13 @@ qsi_extract=function(inputdir,
             if(!silent){message(paste0("  => Reusing previously computed tensor..."))}
           }
           
-          if (! m %in% slotNames(Indicesobj))
+          if (! m %in% methods::slotNames(Indicesobj))
           {warning(paste0('  => ', m,' did not get outputted in the Indices. It may be an issue with the dti package.
                             Skipping')); next}  
           
           #############################
           #create map
-          metricmap <- slot(Indicesobj, m) #3D array
+          metricmap <- methods::slot(Indicesobj, m) #3D array
           niivol <- RNifti::asNifti(metricmap, reference = dwivol)
           
           #save map if wanted
@@ -366,6 +383,7 @@ qsi_extract=function(inputdir,
 #' @param subfiles A list of files, with full path names, from a QSIprep output directory.
 #' @param silent Whether to print messages and warnings or not. Default is FALSE.
 #' @importFrom dti readDWIdata setmask
+#' @importFrom utils read.table
 #' @noRd
 
 # Replacement for the original dtiData_make(); same existing positional arguments.
@@ -418,11 +436,11 @@ dtiData_make <- function(sub_s, subfiles, silent = FALSE, dwi_dir = NULL) {
   if (!length(mask)) return(fail("No matching ACPC brain mask found."))
   if (length(mask) > 1L) stop(sub_s, ": multiple possible brain masks; cannot choose safely.")
 
-  bvec <- as.matrix(read.table(bvec_file))
+  bvec <- as.matrix(utils::read.table(bvec_file))
   if (file.exists(bval_file)) {
     bval <- scan(bval_file, quiet = TRUE)
   } else {
-    bval <- as.numeric(read.table(btable_file)[[1L]])
+    bval <- as.numeric(utils::read.table(btable_file)[[1L]])
   }
   if (!silent) {
     message("  DWI:  ", dwi)
@@ -443,11 +461,8 @@ dtiData_make <- function(sub_s, subfiles, silent = FALSE, dwi_dir = NULL) {
 #' @title Fractional anisotropy skeleton masker
 #'
 #' @description Function to get mask of a template fractional anisotropy (FA) skeleton at a desired threshold. The skeleton is based on FSL's FMRIB58_FA-skeleton_1mm and downsampled to 2mm.
-#' @param sub_s A string indicating the subject ID and their session if applicable (e.g. "sub-0001_ses-1"). Will be used to read inside BIDS-formatted file names.
-#' @param metrics_map A metrics map in MNI 152 2mm space
 #' @param skeleton_fathreshold A numerical object with the (Fractional Anisotropy) threshold value with which to apply the template skeleton. Default is 0.2.
 #' @param skeleton_template A string object naming the template FA skeleton (currently, only 'FMRIB58_FA-skeleton_2mm') or a niftiImage object of the template loaded with RNifti. It is optional as qsi_extract already preloads it when running skeleton_masker, but the latter function can load it by on its own if needed.
-#' @param silent Whether to print messages and warnings or not. Default is FALSE.
 #' @importFrom RNifti readNifti
 #' @examples
 #' skeleton_mask=skeleton_masker(skeleton_fathreshold=0.2) 

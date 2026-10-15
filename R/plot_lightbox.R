@@ -26,7 +26,7 @@
 #'   slice labels, in points. Defaults to \code{5}.
 #' @param cmap Character string specifying the color palette. Supported values
 #'   are \code{"viridis"}, \code{"plasma"}, \code{"inferno"}, \code{"magma"},
-#'   \code{"cividis"}, \code{"jet"}, \code{"rainbow"}, and \code{"hot"}.
+#'   \code{"cividis"}, \code{"jet"}, \code{"rainbow"}, \code{"coolwarm"}, and \code{"hot"}.
 #'   Defaults to \code{"viridis"}. Unrecognized values use the
 #'   \code{"viridis"} palette.
 #' @param colorscale_title Character string specifying the color legend title.
@@ -62,27 +62,22 @@
 #' A \code{ggplot} object. The plot is also printed when the function is called.
 #'
 #' @examples
-#' # Illustrative voxel coordinates and statistics
-#' coords <- as.matrix(expand.grid(
-#'   x = 1:5,
-#'   y = 1:5,
-#'   z = c(10, 20, 30)
-#' ))
-#' vox_data <- seq(-3, 3, length.out = nrow(coords))
-#'
+#' demodata=dl_demo(quiet=TRUE)
+#' dti_data=readRDS(paste0(demodata,"/skel_fa_FMRIB58_skeleton_2mm_t0.2.rds"))
+#' 
 #' # Display three z-axis slices
 #' p <- plot_lightbox(
-#'   z_slices = c(10, 20, 30),
-#'   vox_data = vox_data,
-#'   coords = coords,
+#'   z_slices = c(20, 30, 40),
+#'   vox_data = dti_data$skel_fa[1,],
+#'   coords = dti_data$skel_coords,
 #'   colorscale_title = "t-stat"
 #' )
-#'
+#' 
 #' # Display y-axis slices with a dark background
 #' p_dark <- plot_lightbox(
-#'   y_slices = c(2, 4),
-#'   vox_data = vox_data,
-#'   coords = coords,
+#'   y_slices = c(20, 30, 40),
+#'   vox_data = dti_data$skel_fa[1,],
+#'   coords = dti_data$skel_coords,
 #'   cmap = "inferno",
 #'   dark_mode = TRUE,
 #'   nrow = 2
@@ -116,6 +111,10 @@ plot_lightbox=function(x_slices,
     color_limits=c(-max(abs(color_limits)), max(abs(color_limits)))
   }
   
+  
+  #Solves the "no visible binding for global variable" issue
+  . <- x <- y <- z <- color <- NULL 
+  
   cmap.dat=get_palette_colors(cmap)
   if(dark_mode==T)
   {
@@ -134,7 +133,11 @@ plot_lightbox=function(x_slices,
   #plotting X slices
   if(!missing(x_slices))
   {
+
     keep.x.idx=which(!is.na(match(coords[,1],x_slices)))
+    if (length(keep.x.idx) == 0) {
+      stop("None of the requested `x_slices` match any values in `coords[, 1]`.")
+    }
     coords.keep.x=coords[keep.x.idx, ,drop = FALSE]
     dat.keep=vox_data[keep.x.idx]
     
@@ -159,7 +162,11 @@ plot_lightbox=function(x_slices,
   #plotting Y slices
   if(!missing(y_slices))
   {
+    
     keep.y.idx=which(!is.na(match(coords[,2],y_slices)))
+    if (length(keep.y.idx) == 0) {
+      stop("None of the requested `y_slices` match any values in `coords[, 2]`.")
+    }
     coords.keep.y=coords[keep.y.idx, ,drop = FALSE]
     dat.keep=vox_data[keep.y.idx]
     
@@ -185,6 +192,9 @@ plot_lightbox=function(x_slices,
   if(!missing(z_slices))
   {
     keep.z.idx=which(!is.na(match(coords[,3],z_slices)))
+    if (length(keep.z.idx) == 0) {
+      stop("None of the requested `z_slices` match any values in `coords[, 3]`.")
+    }
     coords.keep.z=coords[keep.z.idx, ,drop = FALSE]
     dat.keep=vox_data[keep.z.idx]
     

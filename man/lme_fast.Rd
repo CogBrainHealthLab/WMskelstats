@@ -39,3 +39,11 @@ variance estimates, and fitting status for each outcome.
 \description{
 Voxel-wise REML random-intercept models
 }
+\examples{
+set.seed(1)
+X <- cbind(Intercept = 1, age = rnorm(100))
+Y <- matrix(rnorm(100 * 5), nrow = 100)
+id <- paste0(rep(x = "sub-", 100), floor(runif(100, min=0, max=100)))
+fit <- suppressWarnings(lme_fast(X, Y, id))
+
+}

@@ -68,7 +68,7 @@
 #' @param output Optional output NIfTI path.
 #' @param singleprecision Write float32 output when TRUE; interpolation remains double precision.
 #' @return RNifti niftiImage on the fixed grid.
-#' @export
+#' @noRd
 qsi_apply_transforms <- function(fixed, moving, transformlist = character(),
                                  interpolator = "linear", imagetype = 0L,
                                  defaultvalue = 0, nthread = 1L,
@@ -116,7 +116,7 @@ qsi_apply_transforms <- function(fixed, moving, transformlist = character(),
 #' @param interpolator "linear" or "nearestNeighbor".
 #' @param nthread Positive number of threads requested for the ANTs subprocess.
 #' @return RNifti niftiImage.
-#' @export
+#' @noRd
 qsi_resample_to_target <- function(moving, fixed, interpolator = "linear", nthread = 1L) {
   qsi_apply_transforms(fixed, moving, character(), interpolator, nthread = nthread)
 }
@@ -126,7 +126,7 @@ qsi_resample_to_target <- function(moving, fixed, interpolator = "linear", nthre
 #' @param filename Output .nii or .nii.gz filename.
 #' @param singleprecision Write float32 rather than float64.
 #' @return Output filename, invisibly.
-#' @export
+#' @noRd
 qsi_image_write <- function(image, filename, singleprecision = TRUE) {
   if (!is.character(filename) || length(filename) != 1L || is.na(filename) ||
       !grepl("\\.nii(\\.gz)?$", filename, ignore.case = TRUE))

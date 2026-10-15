@@ -9,8 +9,17 @@
 #' @param max_iter Maximum iterations per optimization bracket.
 #' @param grid_size Number of initial variance-ratio search points.
 #'
-#' @return List containing coefficients, standard errors, t-statistics,
+#' @returns List containing coefficients, standard errors, t-statistics,
 #'   variance estimates, and fitting status for each outcome.
+#'
+#' @examples
+#' set.seed(1)
+#' X <- cbind(Intercept = 1, age = rnorm(100))
+#' Y <- matrix(rnorm(100 * 5), nrow = 100)
+#' id <- paste0(rep(x = "sub-", 100), floor(runif(100, min=0, max=100)))
+#' fit <- suppressWarnings(lme_fast(X, Y, id))
+#' 
+#' @importFrom utils head
 #' @export
 lme_fast <- function(
     Y, X, id,
@@ -98,7 +107,7 @@ lme_fast <- function(
     stop("Variance-component estimation requires multiple participants and repeated observations.")
   }
   
-  offsets <- c(0, head(cumsum(sizes), -1L))
+  offsets <- c(0, utils::head(cumsum(sizes), -1L))
   
   res <- fast_rint_reg_multi_y_cpp(
     Y = Y[ord, , drop = FALSE],

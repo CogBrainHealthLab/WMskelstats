@@ -12,12 +12,36 @@ TFCE_threshold(TFCEoutput, p = 0.05, k = 20)
 \item{p}{A numeric object specifying the p-value to threshold the results (Default is 0.05)}
 
 \item{k}{Cluster-forming threshold (Default is 20)}
-
-\item{atlas}{An integer corresponding to the atlas of interest.  1=Desikan, 2=Destrieux-148, 3=Glasser-360, 4=Schaefer-100, 5=Schaefer-200, 6=Schaefer-400. Set to \code{1} by default. This argument is ignored for hippocampal surfaces. For applicable SubCortexMesh surfaces, 1=default base ROI, 2=anatomical atlas.}
 }
 \value{
 A list object containing the cluster level results, unthresholded t-stat map, thresholded t-stat map, and positive, negative and bidirectional cluster maps.
 }
 \description{
 Threshold TFCE maps from the TFCE_vertex_analysis() output and identifies significant clusters at the desired threshold.
+}
+\examples{
+\donttest{
+ demodata=dl_demo(quiet=TRUE)
+ #voxel-wise DTI data
+ dti_data=readRDS(paste0(demodata,"/skel_fa_FMRIB58_skeleton_2mm_t0.2.rds"))
+ skeleton=dti_data$skel_fa
+ 
+ #behavioural data to match the dti data
+ dat_beh=read.csv(paste0(demodata,"/ds007090_behdata.csv"))
+ dat_beh$id_ses=paste0(dat_beh$participant_id, '_', dat_beh$session_id)
+ dat_beh=dat_beh[which(dat_beh$id_ses \%in\% row.names(skeleton)),]
+ dat_beh=dat_beh[order(dat_beh$participant_id),]
+ 
+ model=LM_TFCE(model=dat_beh[,c('age_months','sex')],
+               contrast=dat_beh[,'age_months'], 
+               vox_data=skeleton[row.names(skeleton),], 
+               coords=dti_data$skel_coords, 
+               smooth_FWHM=5, 
+               nperm=100, 
+               tail=2, 
+               nthread=2)
+ model_thresh=TFCE_threshold(model, p=0.05,  k=20)
+ model_thresh$cluster_level_results
+}
+
 }
