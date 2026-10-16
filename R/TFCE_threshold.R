@@ -6,7 +6,8 @@
 #' @param TFCEoutput An object containing the output from TFCE_vertex_analysis()
 #' @param p A numeric object specifying the p-value to threshold the results (Default is 0.05)
 #' @param k Cluster-forming threshold (Default is 20)
-#'
+#' @param atlas An integer defining whether to assign the peak absolute value of significant clusters to a label according to the following atlases: 1 the for ICBM-DTI-81 labels atlas, 2 for the JHU tractography atlas (default).
+#' @param template The template name (given by the `qsi_extract()` output as $skel_template, and analysed), so that atlases matching the same skeleton space are selected. Default (and only current option) is "FMRIB58_FA-skeleton_2mm".
 #' @returns A list object containing the cluster level results, unthresholded t-stat map, thresholded t-stat map, and positive, negative and bidirectional cluster maps.
 #' 
 #' @examples
@@ -36,7 +37,7 @@
 #' 
 #' @export
 
-TFCE_threshold=function(TFCEoutput, p=0.05,  k=20)
+TFCE_threshold=function(TFCEoutput, p=0.05,  k=20, atlas=2, template="FMRIB58_FA-skeleton_2mm")
 {
   nperm=length(TFCEoutput$TFCE.max)
   n_vox=length(TFCEoutput$t_stat)
@@ -61,7 +62,7 @@ TFCE_threshold=function(TFCEoutput, p=0.05,  k=20)
     pos.t_stat.thresholdedP=t_stat.thresholdedP
     pos.t_stat.thresholdedP[pos.t_stat.thresholdedP<0]=0
     pos.t_stat.thresholdedP.vol=df_to_vol(coords = TFCEoutput$coords, data=pos.t_stat.thresholdedP)   
-    pos.clust.results=get_clusters(pos.t_stat.thresholdedP.vol,min_size = k)
+    pos.clust.results=get_clusters(pos.t_stat.thresholdedP.vol,min_size = k, atlas=atlas, template=template)
     if(NROW(pos.clust.results)==0)
     {
       pos.clust.results="No significant clusters"
@@ -73,7 +74,7 @@ TFCE_threshold=function(TFCEoutput, p=0.05,  k=20)
     neg.t_stat.thresholdedP=t_stat.thresholdedP
     neg.t_stat.thresholdedP[neg.t_stat.thresholdedP>0]=0
     neg.t_stat.thresholdedP.vol=df_to_vol(coords = TFCEoutput$coords, data=neg.t_stat.thresholdedP)   
-    neg.clust.results=get_clusters(neg.t_stat.thresholdedP.vol,min_size = k)
+    neg.clust.results=get_clusters(neg.t_stat.thresholdedP.vol,min_size = k, atlas=atlas, template=template)
     if(NROW(neg.clust.results)==0)
     {
     neg.clust.results="No significant clusters"

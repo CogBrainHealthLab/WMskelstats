@@ -1,7 +1,16 @@
-get_clusters <- function(img_3d, min_size = 2, connectivity = 26) {
+get_clusters <- function(img_3d, min_size = 2, connectivity = 26, atlas = NULL, template = "FMRIB58_FA-skeleton_2mm") {
   # Validate input
   if (!is.array(img_3d) || length(dim(img_3d)) != 3) {
     stop("Input must be a 3D array.")
+  }
+  
+  if (!is.null(atlas)) {
+    if (!is.numeric(atlas) || length(atlas) != 1L || !atlas %in% 1:2) {
+      stop("atlas must be an integer: 1 (ICBM-DTI-81 labels atlas) or 2 (JHU tractography atlas).")}
+    atlas_f <- system.file("extdata", "atlases",paste0(template, "_ROImap.rds"),
+                           package = "WMskelstats")
+    if (!nzchar(atlas_f)) stop("No ROI map available for skeleton '", template, "'.")
+    atlas_ref <- readRDS(atlas_f)
   }
   
   # Define neighborhood kernel (6-face or 26-corner/edge/face connected)
@@ -28,6 +37,7 @@ get_clusters <- function(img_3d, min_size = 2, connectivity = 26) {
     y            = integer(0),
     z            = integer(0)
   )
+  if (!is.null(atlas)) empty_df$label <- character(0)
   
   if (nrow(nz_coords) == 0) return(empty_df)
   
@@ -59,7 +69,8 @@ get_clusters <- function(img_3d, min_size = 2, connectivity = 26) {
       max_value    = round(peak$val,4),
       x            = peak$x,
       y            = peak$y,
-      z            = peak$z
+      z            = peak$z,
+      label        = if (is.null(atlas)) NULL else atlas_label(atlas_ref, atlas, peak$x, peak$y, peak$z)
     )
   })
   
@@ -71,7 +82,19 @@ get_clusters <- function(img_3d, min_size = 2, connectivity = 26) {
   return(out_df)
 }
 
-
+#function to assign a label to the peak voxel from a cluster according to predefined atlas
+atlas_label <- function(ref, atlas, x, y, z) {
+  col <- c("JHU_labels", "JHU_tracts")[atlas]
+  key <- function(x, y, z) paste(x, y, z, sep = "_")
+  m   <- match(key(x, y, z), key(ref$voxels$x, ref$voxels$y, ref$voxels$z))
+  if (length(m) != 1L) stop("Could not look up peak voxel; check x, y, z and the ROI map structure.")
+  if (is.na(m)) {
+    warning("Peak voxel (", x, ", ", y, ", ", z, ") is not on the skeleton; labelled NA.")
+    return(NA_character_)
+  }
+  lut <- ref$lut[[col]]
+  lut$label[match(ref$voxels[[col]][m], lut$index)]
+}
 
 ##converting between dataframe and 3D array formats
 

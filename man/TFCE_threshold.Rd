@@ -4,7 +4,13 @@
 \alias{TFCE_threshold}
 \title{Thresholding TFCE output}
 \usage{
-TFCE_threshold(TFCEoutput, p = 0.05, k = 20)
+TFCE_threshold(
+  TFCEoutput,
+  p = 0.05,
+  k = 20,
+  atlas = 2,
+  template = "FMRIB58_FA-skeleton_2mm"
+)
 }
 \arguments{
 \item{TFCEoutput}{An object containing the output from TFCE_vertex_analysis()}
@@ -12,6 +18,10 @@ TFCE_threshold(TFCEoutput, p = 0.05, k = 20)
 \item{p}{A numeric object specifying the p-value to threshold the results (Default is 0.05)}
 
 \item{k}{Cluster-forming threshold (Default is 20)}
+
+\item{atlas}{An integer defining whether to assign the peak absolute value of significant clusters to a label according to the following atlases: 1 the for ICBM-DTI-81 labels atlas, 2 for the JHU tractography atlas (default).}
+
+\item{template}{The template name (given by the \code{qsi_extract()} output as $skel_template, and analysed), so that atlases matching the same skeleton space are selected. Default (and only current option) is "FMRIB58_FA-skeleton_2mm".}
 }
 \value{
 A list object containing the cluster level results, unthresholded t-stat map, thresholded t-stat map, and positive, negative and bidirectional cluster maps.
