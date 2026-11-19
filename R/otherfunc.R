@@ -218,31 +218,3 @@ perm_between=function(random)
   }
   return(perm.idx)
 }
-
-
-## Efficient way to extract t statistics from linear regression models to speed up the permutation process
-## adapted from https://stackoverflow.com/questions/15820623/obtain-t-statistic-for-regression-coefficients-of-an-mlm-object-returned-by-l
-extract.t=function(mod,row)
-{
-  p = mod$rank
-  df.residual=NROW(mod$residuals)-NROW(mod$coefficients)
-  rdf = df.residual
-  Qr = mod$qr
-  p1 = 1L:p
-  r = mod$residuals
-  R = chol2inv(Qr[p1, p1, drop = FALSE])  
-  if(is.matrix(mod$coefficients))
-  {
-    rss = colSums(r^2)
-    resvar = rss/rdf 
-    se = (sqrt(diag(R) %*% t(resvar)))[row,]
-    est = mod$coefficients[row,]
-  } else {
-    rss = sum(r^2)
-    resvar = rss/rdf
-    se = (sqrt(diag(R) * resvar))[row]
-    est = mod$coefficients[row]
-  }
-  tval = est/se 
-  return(tval)
-}
