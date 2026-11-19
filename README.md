@@ -92,7 +92,7 @@ metrics_skeletons=qsi_extract(
 
 Here is a snippet of the extraction process when silent=FALSE:
 
-```{r eval=FALSE, include=TRUE}
+```
 Preloading ANTs...
 
 Processing sub-138950_ses-1... 
@@ -136,21 +136,21 @@ At the end of the process, two R objects are generated: skel_fa_FMRIB58_skeleton
 
 For the sake of the demo, we already provide two extracted .rds files. They can be downloaded (\~62 MB total) from the Github directory to a desired destinations using the following function:
 
-```{r}
+```{r eval=FALSE, include=TRUE}
 demodata=dl_demo(path=tempdir(), #R's temporary directory 
                  quiet=TRUE)
 ```
 
 Here, we run the skeleton data outputted by qsi_extract() for the FA data of the cohort. 
 
-```{r}
+```{r eval=FALSE, include=TRUE}
 dti_data=readRDS(paste0(demodata,"/skel_fa_FMRIB58_skeleton_2mm_t0.2.rds"))
 skeleton=dti_data$skel_fa
 ```
 
 We load the behavioural data to select variables for our models, and select participant with matching IDs and sessions to that of the data matrix's row names:
 
-```{r}
+```{r eval=FALSE, include=TRUE}
 beh_data=read.csv(paste0(demodata,"/ds007090_behdata.csv"))
 beh_data=beh_data[order(beh_data$participant_id),]
 
@@ -162,7 +162,7 @@ beh_data=beh_data[which(beh_data$id_ses %in% row.names(skeleton)),]
 
 In this example, we test the effect of age on FA, controlling for sex, with a simple linear model with the `LM_TFCE()` function. The function identifies voxel-wise clusters in the white matter skeleton via threshold-free cluster enhancement (TFCE) correction significant at cluster-wise p < .05:
 
-```{r}
+```{r eval=FALSE, include=TRUE}
 model_LM=LM_TFCE(model=beh_data[,c('age_months','sex')], #all model variables
               contrast=beh_data[,'age_months'], #main predictor of interest
               vox_data=skeleton[row.names(skeleton),], 
@@ -177,7 +177,7 @@ model_thresh_LM=TFCE_threshold(model_LM, p=0.05,  k=20)
 ```
 WMskelstats also has a linear mixed models function (`LME_TFCE()`) which is used in a similar way and allows the for addition of a random variable:
 
-```{r}
+```{r eval=FALSE, include=TRUE}
 model_LME=LME_TFCE(model=beh_data[,c('age_months','sex')],
                contrast=beh_data[,'age_months'], 
                random=beh_data[,'participant_id'],
@@ -192,10 +192,10 @@ model_thresh_LME=TFCE_threshold(model_LME, p=0.05,  k=20)
 ```
 The identified clusters and their coordinates are summarised in the model object:
 
-```{r}
+```{r eval=FALSE, include=TRUE}
 print(model_thresh_LME$cluster_level_results)
 ```
-```{r eval=FALSE, include=TRUE}
+```
 $`Positive contrast`
    cluster_size max_value  x  y  z
 1          7645    6.2866 51 57 71
@@ -259,7 +259,7 @@ $`Negative contrast`
 
 The package provides an interactive viewer window (`skel_viewer()`) which allows viewing the skeleton's slices at each axis (axial, coronal, sagittal), as well as interactively visualising the data in 3D space. Below is an example screenshot with the significant clusters identified previously:
 
-```{r, eval=FALSE}
+```{r eval=FALSE, include=TRUE}
 skel_viewer(coords=dti_data$skel_coords,
           data=model_thresh_LME$thresholded_tstat_map)
 ```
@@ -268,7 +268,7 @@ skel_viewer(coords=dti_data$skel_coords,
 
 A static 2D plot can also be created with `plot_lightbox()` which lets users define the exact slices they wish to plot, in a grid-like manner:
 
-```{r}
+```{r eval=FALSE, include=TRUE}
 plot_lightbox(z_slices=c(20, 30, 40, 50),
               vox_data=model_thresh_LME$thresholded_tstat_map, 
               coords=dti_data$skel_coords,
@@ -283,3 +283,84 @@ plot_lightbox(z_slices=c(20, 30, 40, 50),
 ```
 
 ![Significant clusters plotted via plot_lightbox](man/figures/plot_lightbox.jpg)
+
+
+### Extracting end points
+
+From clusters in the skeleton, it is possible to estimate the white matter tracts that cross through them and where those tracts lead elsewhere in the brain. To do that, WMskelstats uses the Human Connectome Project normative dTOR-985 structural connectome [(Elias et al. 2024)](https://doi.org/10.1038/s41597-024-03197-0) with 11,820,000 streamlines. Streamlines from the [full-connectome tractogram](https://doi.org/10.6084/m9.figshare.c.6844890) were assigned to WMskelstats' MNI 152 2mm template volume, allowing the package to match streamlines to its own cluster-voxels and tracking streamline endpoints. 
+
+A streamline database ([~442 MB .h5 container file](https://doi.org/10.21979/N9/QIJFOZ)) was specifically created for WMskelstats to fetch this information and match it to a given cluster map. Users that do not have it will be prompted to download it or can do it manually with the function below:
+
+```{r eval=FALSE, include=TRUE}
+streamline_data_check()
+```
+```
+The HCP connectome streamline data was not detected inside WMskelstats's package directory (C:/.../WMskelstats/inst/extdata/template/dTOR-985_full-connectome_MNI152-2mm_R.h5). It is needed to identify streamlines crossing voxels and localise their endpoints.
+
+Do you want the streamline data (~442.3 MB) to be downloaded now? 
+
+1: Yes
+2: No
+
+Selection:1
+trying URL 'https://researchdata.ntu.edu.sg//api/access/datafile/571906'
+downloaded 442.3 MB
+```
+
+If we want to get a map of endpoints for streamlines crossing a set of clusters, users can use the output of the clusters from a model outputted with `TFCE_threshold()` with the `get_endpoints()` function. It will return back maps that can then be plotted and show the voxels where the streamlines crossing through the clusters arrive.
+
+For example, for our clusters of positive age effect from the previous model, we can identify where crossing streamlines led like this:
+
+```{r eval=FALSE, include=TRUE}
+endpoints=get_endpoints(cluster_mask = model_thresh_LME$pos_mask, #can also be neg_mask or thresholded_tstat_map, will be binarised
+                        skel_coords=dti_data$skel_coords,  
+                        min_size = 100, #For clusters of at least 100 voxels
+                        split_clusters= T, #Endpoint maps for each cluster separately instead of all together
+                        weighted = F, #do endpoint voxels get a streamline count or is weighted by the sum of crossed voxels' values 
+                        stats_map = model_thresh_LME$thresholded_tstat_map,  #optional stat maps to weight endpoints values 
+                        keep_skel = T #keeps skeleton coordinates so we can later plot the skeleton background along with the endpoints
+                        )
+```
+
+Just like `TFCE_threshold()`, the endpoints object return a cluster summary to keep track of the selected clusters, giving their size, the number of streamlines crossing them and voxels that they end up in (in both direction).
+
+```{r eval=FALSE, include=TRUE}
+endpoints$clusters
+```
+```
+  cluster cluster_size n_streamlines n_endpoint_voxels  x  y  z max_value
+1       1         9364       8405070            160212 39 59 46    8.6029
+2     124          177        208068             20157 42 19 48    4.4488
+3     183          391        645508             45834 65 22 39    4.1099
+4     199          258        300119             21682 41 22 37    4.8806
+5     337         1082        775223             48347 27 28 20    6.1748
+6     360          150        222846             25266 68 56 28    3.0440
+7     402          113         22029              9012 26 48 28    4.0948
+```
+
+Let's say we want to plot cluster #360's endpoints connected via at least ~200 streamlines. We can use sliders in `skel_viewer()`, which reveals that most streamlines crossing through this cluster lead to the right temporal area:
+
+```{r eval=FALSE, include=TRUE}
+skel_viewer(coords=endpoints$cluster_360$coords,       
+            data=endpoints$cluster_360$vals)
+```
+
+![Endpoints map for streamlines crossing through a cluster visualised with skel_viewer](man/figures/skel_viewer_endpoints.jpg)
+
+Likewise, plot_lightbox can uses these outputs:
+
+```{r eval=FALSE, include=TRUE}
+#We can manually threshold the count:
+endpoints$cluster_360$vals[which(endpoints$cluster_360$vals<200)]=NA
+
+plot_lightbox(z_slices=c(20, 24, 28),
+              vox_data=endpoints$cluster_360$vals, 
+              coords=endpoints$cluster_360$coords,
+              pointsize=1, 
+              colorscale_title="Streamline count",
+              dark_mode=TRUE, #black background instead of white
+              nrow=1, #number of rows on the grid
+              na_color="#7F7F7F")
+```
+
+![Endpoints map for streamlines crossing through a cluster visualised with plot_lightbox](man/figures/plot_lightbox_endpoints.jpg)

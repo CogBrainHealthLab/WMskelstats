@@ -32,7 +32,7 @@ LM_TFCE(
 
 \item{formula_dataset}{An optional data.frame object containing the independent variables to be used with the formula (the IV names in the formula must match their column names in the dataset).}
 
-\item{vox_data}{A N x V matrix object containing the voxel-wse data (N row for each subject, V for each voxel)}
+\item{vox_data}{A N x V matrix object containing the voxel-wise data (N row for each subject, V for each voxel)}
 
 \item{coords}{A V x 3 matrix, containing the X, Y and Z coordinates of the voxels used in \code{vox_data}.}
 
